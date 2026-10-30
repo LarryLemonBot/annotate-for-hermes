@@ -1,5 +1,7 @@
 # Annotate for Hermes
 
+![Annotate for Hermes: selection brackets around a comment bubble with three blue dots](docs/catalog-banner.png)
+
 Give feedback on several parts of an assistant response in one message.
 
 Select a passage, choose **Add to chat**, and add a comment. Repeat across earlier responses. Your selections collect in one **N annotations** attachment inside the main composer. Open the attachment to review, edit, or remove individual comments, then send it with your ordinary reply.
