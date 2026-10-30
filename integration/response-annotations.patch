@@ -228,10 +228,10 @@ index 51b5976d37..ab311c74a8 100644
   * A fresh matcher for every surface that has to find references in text: the
 diff --git a/apps/desktop/src/lib/response-annotations.test.ts b/apps/desktop/src/lib/response-annotations.test.ts
 new file mode 100644
-index 0000000000..caa7140a41
+index 0000000000..996781e33a
 --- /dev/null
 +++ b/apps/desktop/src/lib/response-annotations.test.ts
-@@ -0,0 +1,68 @@
+@@ -0,0 +1,69 @@
 +import { describe, expect, it } from 'vitest'
 +
 +import { composerPlainText, refChipHtml } from '@/app/chat/composer/rich-editor'
@@ -252,6 +252,7 @@ index 0000000000..caa7140a41
 +      expect(captureResponseSelection()).toBeNull()
 +      root.remove()
 +    }
++
 +    window.getSelection()!.removeAllRanges()
 +  })
 +  it('keeps three pairs in one native chip and round-trips every character', () => {
@@ -302,10 +303,10 @@ index 0000000000..caa7140a41
 +})
 diff --git a/apps/desktop/src/lib/response-annotations.ts b/apps/desktop/src/lib/response-annotations.ts
 new file mode 100644
-index 0000000000..e23fdb328e
+index 0000000000..92bf45f544
 --- /dev/null
 +++ b/apps/desktop/src/lib/response-annotations.ts
-@@ -0,0 +1,111 @@
+@@ -0,0 +1,116 @@
 +/** Self-contained response references: the draft, queue and saved message all
 + * carry the same data. No local-storage lookup is required to recover a reply. */
 +export interface ResponseAnnotation {
@@ -334,15 +335,20 @@ index 0000000000..e23fdb328e
 +/** Capture at the native boundary so plugins never depend on transcript markup. */
 +export function captureResponseSelection(): { text: string; range: Range; anchor: DOMRect } | null {
 +  const selection = window.getSelection()
-+  if (!selection?.rangeCount || selection.isCollapsed) return null
++
++  if (!selection?.rangeCount || selection.isCollapsed) {return null}
 +  const range = selection.getRangeAt(0).cloneRange()
 +  const ancestor = range.commonAncestorContainer
 +  const element = ancestor instanceof Element ? ancestor : ancestor.parentElement
 +  const response = element?.closest('[data-slot="aui_assistant-message-root"]')
-+  if (!response || !response.contains(range.startContainer) || !response.contains(range.endContainer)) return null
-+  if (element?.closest('input, textarea, [contenteditable="true"]')) return null
++
++  if (!response || !response.contains(range.startContainer) || !response.contains(range.endContainer)) {return null}
++
++  if (element?.closest('input, textarea, [contenteditable="true"]')) {return null}
 +  const text = selection.toString()
-+  if (!text.trim() || text.length > 64_000) return null
++
++  if (!text.trim() || text.length > 64_000) {return null}
++
 +  return { text, range, anchor: range.getBoundingClientRect() }
 +}
 +
@@ -450,12 +456,12 @@ index 565db36838..c7075cf4e4 100644
     *  Mounted surfaces answer with their in-DOM text (current, incl.
     *  unsaved keystrokes); an unmounted session falls back to its debounced
 diff --git a/apps/desktop/src/styles.css b/apps/desktop/src/styles.css
-index 219de06112..23bd527842 100644
+index 433522bb92..a0da12d673 100644
 --- a/apps/desktop/src/styles.css
 +++ b/apps/desktop/src/styles.css
-@@ -3886,3 +3886,54 @@ html[data-hud-window] [data-slot='popover-content'] {
- [data-pane-hidden] * {
-   visibility: inherit !important;
+@@ -4239,3 +4239,54 @@ html[data-hermes-desktop-host='browser'] [data-slot='sidebar-container'] {
+   background: none;
+   color: var(--err-ink);
  }
 +
 +/* Response annotations are attachments inside the composer, with one shared preview. */
@@ -508,3 +514,43 @@ index 219de06112..23bd527842 100644
 +  width: 0.875rem;
 +  height: 0.875rem;
 +}
+diff --git a/website/docs/developer-guide/desktop-plugin-sdk.md b/website/docs/developer-guide/desktop-plugin-sdk.md
+index 2d30cc7059..d1fac17550 100644
+--- a/website/docs/developer-guide/desktop-plugin-sdk.md
++++ b/website/docs/developer-guide/desktop-plugin-sdk.md
+@@ -645,6 +645,35 @@ A multi-session plugin keeps its per-session state on its side (which session
+ its panel is editing) and passes that id here; the bus guarantees one
+ plugin write can never land in another session's composer.
+ 
++### Response annotation attachments
++
++`host.composer.annotations` is a versioned native attachment contract for selection-feedback
++plugins. Feature-detect `version === 1` and `captureSelection` before enabling the interaction.
++`captureSelection()` returns `{ text, range, anchor }` for a nonempty selection within one
++assistant response, or `null`. The native layer owns transcript eligibility and markup;
++plugins do not query private message or composer DOM. The cloned `Range` is temporary and
++must not be used as persisted source identity.
++
++`format({ type: 'response-annotations', version: 1, label, annotations })` returns one draft
++reference. Each ordered annotation has a unique string `id`, selected `text`, and `comment`
++(which may be empty). It escapes reference delimiters and validates the payload. `parse(value)`
++accepts the reference's JSON value and returns the payload or `null`. Limits are 100 items,
++64,000 characters per selected text/comment, and 512,000 encoded characters.
++
++The draft and saved message carry the complete payload. One native chip displays `label`;
++selected text and comments do not expand into the ordinary reply textbox. Staging still uses
++`getDraft`/`setDraft`, and never implies `submit`.
++
++Register `onOpen(({ value, editable, remove, anchor }) => ...)` to open a plugin-owned preview
++or editor. It returns a disposer; register that with `ctx.onDispose`. Saved-message events
++have `editable: false`. For a draft edit/removal, capture the current connection, profile and
++stored session, reread that draft, and reject a missing/changed reference before writing.
++Do not mutate other chats if focus changes while an async operation is pending.
++
++The API does not change gateway processing, model selection, memory, ordinary references,
++or the existing send/queue lifecycle. Plugins remain responsible for accessible preview UI,
++retaining comments after failed writes, and releasing their own listeners and temporary ranges.
++
+ **Migrating off DOM reach-in** (the held catalog plugins that motivated this API
+ and its siblings; the pet-wallet row uses the [pet bubble](#pet-bubble) door):
+ 

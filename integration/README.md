@@ -2,7 +2,7 @@
 
 This developer patch adds a generic attachment reference and a public selection capture method to Hermes Desktop. It is not run by the plugin installer and is not a substitute for upstream acceptance.
 
-Tested base: `bf0203a794a07aac3ff764972ab9087baa4e4f4e`.
+Tested base: `5057eaa3a4d0cbef0e30078418a5115faa62889e`.
 
 In a separate Hermes checkout at that commit:
 
@@ -13,7 +13,7 @@ git apply /absolute/path/to/response-annotations.patch
 
 Then use that checkout's documented desktop development/build workflow. If the check fails, stop and review the differences; do not force the patch. This does not install or replace an application automatically.
 
-The eight changed desktop files cover the annotation reference, the composer chip, saved-message rendering, SDK methods, styles, and tests. There are no gateway, provider, authentication, model, tool, or memory changes.
+The eight changed desktop files and SDK documentation cover the annotation reference, the composer chip, saved-message rendering, SDK methods, styles, and tests. There are no gateway, provider, authentication, model, tool, or memory changes.
 
 `host.composer.annotations` exposes `version: 1`, `captureSelection()`, `format(payload)`, `parse(value)`, and `onOpen(listener)`. Selection capture accepts text within one assistant response and rejects the composer and user messages. The native layer owns transcript markup. The plugin owns its popovers and reads/writes the draft through the existing composer SDK.
 
