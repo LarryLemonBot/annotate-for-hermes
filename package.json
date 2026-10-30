@@ -1,0 +1,9 @@
+{
+  "name": "annotate-for-hermes",
+  "version": "1.0.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {"node": ">=22"},
+  "scripts": {"test": "vitest run --config tests/vitest.config.mjs", "test:native": "node tests/native.mjs"},
+  "devDependencies": {"jsdom": "29.1.1", "vitest": "4.1.12"}
+}
