@@ -10,7 +10,7 @@ Select a passage, choose **Add to chat**, and add a comment. Repeat across earli
 
 Installing the plugin alone in stock Hermes will show a compatibility notice. It will not modify Hermes to make itself work. It is not currently in the curated plugin catalog.
 
-The native integration is proposed in [Hermes PR #146959](https://github.com/NousResearch/hermes-agent/pull/146959).
+The native integration is proposed in [Hermes PR #146959](https://github.com/NousResearch/hermes-agent/pull/146959). [Catalog PR #146960](https://github.com/NousResearch/hermes-agent/pull/146960) is a draft pending that API release.
 
 The goal is a normal in-app install after the native API is available and the plugin passes catalog review. Do not describe this preview as available through Hermes' catalog.
 
@@ -40,13 +40,15 @@ The tested Hermes source base is `5057eaa3a4d0cbef0e30078418a5115faa62889e`. Use
 4. Use **Reload desktop plugins** in the command palette if the app was already open.
 5. Select assistant text and choose **Add to chat**. An existing draft should stay intact.
 
+Development dependencies are confined to `tests/`; installing the plugin does not require npm.
+
 The plugin is plain JavaScript with no runtime dependencies, Python hooks, model requests, external network calls, or background processes. All composer reads and writes use the public SDK. Selection eligibility belongs to the native API so the plugin does not depend on private transcript markup.
 
 ## Verification
 
 ```sh
-npm install
-npm test
+npm --prefix tests ci
+npm --prefix tests test
 hermes plugins validate .
 ```
 
