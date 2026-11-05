@@ -6,8 +6,7 @@ const symbols = {
   note: '<path d="M8 10h8M8 14h5"/><path d="M20 11.5v4A3.5 3.5 0 0 1 16.5 19H9l-4 3v-4a3.5 3.5 0 0 1-2-3.2V6.5A3.5 3.5 0 0 1 6.5 3h10A3.5 3.5 0 0 1 20 6.5Z"/>',
   edit: '<path d="m15 5 4 4M4 20l5-1L20 8a2.8 2.8 0 0 0-4-4L5 15Z"/>',
   trash: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>',
-  close: '<path d="m6 6 12 12M6 18 18 6"/>',
-  up: '<path d="M12 19V5m-6 6 6-6 6 6"/>'
+  close: '<path d="m6 6 12 12M6 18 18 6"/>'
 }
 
 function icon(name) {
@@ -62,13 +61,13 @@ const styles = `
 [data-afh] button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;flex-shrink:0}
 [data-afh] button:disabled{opacity:.5;cursor:wait}
 [data-afh] button:focus-visible,[data-afh] textarea:focus-visible{outline:2px solid var(--afh-accent);outline-offset:3px}
-.afh-surface{position:fixed;background:var(--afh-bg);border:1px solid var(--afh-line);box-shadow:0 2px 6px #00000012,0 12px 36px #0000002e;animation:afh-appear 140ms cubic-bezier(.2,.8,.2,1) both}
-.afh-toolbar{border-radius:10px;padding:3px}
-.afh-add{display:flex;align-items:center;gap:7px;min-height:32px;padding:5px 10px;border-radius:7px}
+.afh-surface{position:fixed;background:var(--afh-bg);border:1px solid var(--afh-line);box-shadow:0 1px 3px #00000012,0 4px 16px #0000001f;animation:afh-appear 120ms cubic-bezier(.2,0,0,1) both}
+.afh-toolbar{height:28px;border-radius:8px;padding:2px}
+.afh-add{display:flex;align-items:center;gap:7px;height:22px;padding:0 8px;border-radius:5px}
 .afh-add:hover,.afh-icon-button:hover{background:var(--afh-hover)}
 .afh-icon{display:inline-flex;width:16px;height:16px;align-items:center;justify-content:center;flex:none}
 .afh-icon svg{width:100%;height:100%}
-.afh-panel{width:min(340px,calc(100vw - 24px));border-radius:12px;padding:12px;max-height:calc(100vh - 24px);overflow:auto;overscroll-behavior:contain}
+.afh-panel{width:320px;max-width:calc(100vw - 24px);border-radius:8px;padding:12px;max-height:calc(100vh - 24px);overflow:auto;overscroll-behavior:contain;animation-duration:160ms}
 .afh-panel:focus{outline:none}
 [data-afh="review"]{width:min(360px,calc(100vw - 24px))}
 .afh-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
@@ -80,8 +79,8 @@ const styles = `
 [data-afh] .afh-input::placeholder{color:var(--afh-muted);opacity:.7}
 .afh-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}
 .afh-hint{font-size:11px;color:var(--afh-muted)}
-[data-afh] .afh-save{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--afh-accent);color:#fff;transition:filter 100ms ease,transform 100ms ease}
-.afh-save:hover{filter:brightness(1.08)}
+[data-afh] .afh-save{height:28px;padding:0 10px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:#2563eb;color:#fff;transition:filter 100ms ease,transform 100ms ease}
+.afh-save:hover{filter:brightness(.94)}
 .afh-save:active{transform:scale(.96)}
 .afh-error{font-size:12px;color:var(--ui-text-danger,#ed8d88);margin-top:10px}
 .afh-error:empty{display:none}
@@ -136,6 +135,9 @@ export class AnnotateController {
       this.disposers.push(() => target.removeEventListener(event, fn, options))
     }
     listen(document, 'mouseup', event => { if (!event.target.closest?.(ROOT)) this.offer() })
+    listen(document, 'selectionchange', () => {
+      if (this.toolbar && !this.api.captureSelection()) { this.toolbar.remove(); this.toolbar = null }
+    })
     listen(document, 'keyup', event => { if (event.key.startsWith('Arrow') && event.shiftKey) this.offer() })
     listen(document, 'keydown', event => {
       if (event.key === 'Escape' && (this.panel || this.toolbar)) {
@@ -148,6 +150,9 @@ export class AnnotateController {
     })
     listen(window, 'resize', () => this.position())
     listen(document, 'scroll', () => { this.toolbar?.remove(); this.toolbar = null }, true)
+    const observer = new MutationObserver(() => { if (this.ranges.size) this.refreshHighlights() })
+    observer.observe(document.body, { childList: true, characterData: true, subtree: true })
+    this.disposers.push(() => observer.disconnect())
     for (const atom of [this.host.state.focusedStoredSessionId, this.host.state.focusedSessionId, this.host.state.connectionId, this.host.state.profile]) {
       if (atom?.listen) this.disposers.push(atom.listen(() => {
         this.close(false)
@@ -168,15 +173,18 @@ export class AnnotateController {
 
   offer() {
     const selected = this.api.captureSelection()
+    this.toolbar?.remove()
+    this.toolbar = null
     if (!selected) return
     const {text, range, anchor} = selected
-    this.toolbar?.remove()
     const captured = { text, range, anchor, session: this.session(), scope: this.scope() }
     this.toolbar = this.surface('toolbar')
+    this.toolbar.setAttribute('role', 'toolbar')
+    this.toolbar.setAttribute('aria-label', 'Selection annotation')
     const add = button('Add to chat', 'note', () => {
-      const pending = this.pending.get(captured.scope)
-      this.edit(pending || captured)
+      this.edit(captured)
     }, 'afh-add')
+    add.setAttribute('aria-haspopup', 'dialog')
     add.append(node('span', '', 'Add to chat'))
     add.addEventListener('mousedown', event => event.preventDefault())
     this.toolbar.append(add)
@@ -204,6 +212,13 @@ export class AnnotateController {
 
   edit(captured, existing = captured.existing || null, attachment = captured.attachment || null) {
     if (this.busy || captured.session !== this.session() || (captured.scope && captured.scope !== this.scope())) return
+    const pending = this.pending.get(this.scope())
+    const resumed = pending && pending !== captured
+    if (resumed) {
+      captured = pending
+      existing = pending.existing
+      attachment = pending.attachment
+    }
     this.close(false)
     this.owner = captured.session
     this.anchor = captured.anchor
@@ -212,8 +227,10 @@ export class AnnotateController {
     this.panel = this.surface('editor')
     this.panel.setAttribute('role', 'dialog')
     this.panel.setAttribute('aria-label', existing ? 'Edit annotation' : 'Add annotation')
+    const panel = this.panel
     const header = node('div', 'afh-header')
-    header.append(node('span', 'afh-title', existing ? 'Edit annotation' : 'Add annotation'), button('Cancel annotation', 'close', () => { this.pending.delete(entry.scope); this.close(true) }))
+    const cancel = button('Cancel annotation', 'close', () => { if (!this.busy) { this.pending.delete(entry.scope); this.close(true) } })
+    header.append(node('span', 'afh-title', existing ? 'Edit annotation' : 'Add annotation'), cancel)
     const quote = node('blockquote', 'afh-quote', captured.text)
     const label = node('label', 'afh-comment-label', 'Comment')
     const input = node('textarea', 'afh-input')
@@ -228,24 +245,35 @@ export class AnnotateController {
     const footer = node('div', 'afh-footer')
     const error = node('div', 'afh-error')
     error.setAttribute('role', 'alert')
-    const save = button(existing ? 'Save annotation' : 'Add annotation to draft', 'up', () => commit(), 'afh-save')
+    const save = button(existing ? 'Save annotation' : 'Add annotation to draft', null, () => commit(), 'afh-save')
+    save.textContent = existing ? 'Save' : 'Add'
     const commit = async () => {
       if (this.busy || this.disposed) return
       this.busy = true
       save.disabled = true
+      cancel.disabled = true
       input.readOnly = true
       try {
         await this.save(entry)
         this.pending.delete(entry.scope)
-        if (!this.disposed) { this.close(true); this.status.textContent = existing ? 'Annotation updated.' : 'Annotation added to your draft.' }
+        if (!this.disposed && this.scope() === entry.scope) {
+          if (this.panel === panel) this.close(true)
+          this.status.textContent = existing ? 'Annotation updated.' : 'Annotation added to your draft.'
+        }
       } catch (failure) { error.textContent = failure.message }
-      finally { this.busy = false; save.disabled = false; input.readOnly = false }
+      finally { this.busy = false; save.disabled = false; cancel.disabled = false; input.readOnly = false }
     }
     input.addEventListener('keydown', event => {
       if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.stopPropagation(); void commit() }
     })
-    footer.append(node('span', 'afh-hint', `Enter to ${existing ? 'save' : 'add'} · Shift Enter for a new line`), save)
+    const hint = node('span', 'afh-hint', `Enter to ${existing ? 'save' : 'add'} · Shift Enter for a new line · Esc to close`)
+    hint.id = 'afh-editor-hint'
+    input.setAttribute('aria-describedby', hint.id)
+    footer.append(hint, save)
     this.panel.append(header, quote, label, input, footer, error)
+    if (resumed) {
+      error.textContent = 'Your unfinished comment was restored. Add or save it, or cancel it before starting another.'
+    }
     resize()
     this.position()
     input.focus()
@@ -253,7 +281,8 @@ export class AnnotateController {
 
   async save(entry) {
     if (entry.scope !== this.scope() || this.disposed) throw new Error('Return to the original chat to add this annotation.')
-    const draft = await this.host.composer.getDraft(entry.session) ?? ''
+    const draft = await this.host.composer.getDraft(entry.session)
+    if (draft === null) throw new Error('The draft is unavailable. Your comment is kept here; try again.')
     if (entry.scope !== this.scope() || this.disposed) throw new Error('The chat changed. Your comment is still here.')
     const attachments = readAttachments(draft, this.api)
     const previous = entry.existing
@@ -268,9 +297,16 @@ export class AnnotateController {
       annotations[index] = item
     } else annotations.push(item)
     const next = replaceAttachment(draft, previous, annotations, this.api)
-    if (!await this.host.composer.setDraft(entry.session, next)) throw new Error('The draft is unavailable. Your comment is kept here; try again.')
-    if (entry.range) this.ranges.set(id, { scope: entry.scope, range: entry.range })
+    await this.writeDraft(entry.session, entry.scope, draft, next)
+    if (entry.range) this.ranges.set(id, { scope: entry.scope, range: entry.range, text: entry.text })
     this.refreshHighlights()
+  }
+
+  async writeDraft(session, scope, previous, next) {
+    const current = await this.host.composer.getDraft(session)
+    if (this.disposed || scope !== this.scope()) throw new Error('The chat changed. Return to the original chat to continue.')
+    if (current !== previous) throw new Error('The draft changed. Nothing was overwritten; try again.')
+    if (!await this.host.composer.setDraft(session, next)) throw new Error('The draft is unavailable. Nothing was changed; try again.')
   }
 
   async open(request) {
@@ -280,7 +316,7 @@ export class AnnotateController {
     const session = this.session()
     const scope = this.scope()
     const draft = request.editable ? await this.host.composer.getDraft(session) ?? '' : ''
-    if (this.disposed || this.scope() !== scope) return
+    if (this.disposed || this.busy || this.scope() !== scope) return
     const attachment = readAttachments(draft, this.api).find(part => part.value === request.value)
     if (request.editable && !attachment) return
     if (request.remove) {
@@ -330,7 +366,7 @@ export class AnnotateController {
       const current = readAttachments(draft, this.api).find(part => part.token === attachment.token)
       if (!current) throw new Error('This annotation changed. Reopen it to continue.')
       const items = id ? current.data.annotations.filter(item => item.id !== id) : []
-      if (!await this.host.composer.setDraft(session, replaceAttachment(draft, current, items, this.api))) throw new Error('The draft is unavailable. Nothing was removed.')
+      await this.writeDraft(session, scope, draft, replaceAttachment(draft, current, items, this.api))
       for (const item of current.data.annotations) if (!items.some(remaining => remaining.id === item.id)) this.ranges.delete(item.id)
       this.refreshHighlights()
       this.close(true)
@@ -343,6 +379,9 @@ export class AnnotateController {
   }
 
   refreshHighlights() {
+    for (const [id, entry] of this.ranges) {
+      if (!entry.range.commonAncestorContainer.isConnected || entry.range.collapsed || entry.range.toString() !== entry.text) this.ranges.delete(id)
+    }
     if (!globalThis.CSS?.highlights || !globalThis.Highlight) return
     const ranges = [...this.ranges.values()].filter(entry => entry.scope === this.scope() && entry.range.commonAncestorContainer.isConnected).map(entry => entry.range)
     CSS.highlights.set('annotate-for-hermes', new Highlight(...ranges))
