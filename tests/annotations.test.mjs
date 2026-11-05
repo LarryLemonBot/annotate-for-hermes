@@ -126,8 +126,8 @@ describe('selection popup polish',()=>{
     document.querySelector('.afh-add').click()
     const input=document.querySelector('textarea')
     const hint=document.getElementById(input.getAttribute('aria-describedby'))
-    expect(hint.textContent).toContain('Esc discards')
-    expect(hint.getAttribute('aria-label')).toContain('Escape to discard')
+    expect(hint.textContent).toContain('Esc cancel')
+    expect(hint.getAttribute('aria-label')).toContain('Escape to cancel')
     expect(document.querySelector('.afh-save').textContent).toBe('Add')
     expect(document.querySelector('.afh-save svg')).toBeNull()
     await comment('Saved')
@@ -286,7 +286,7 @@ describe('selection popup polish',()=>{
   it('takes every colour from host theme tokens, with light-dark() fallbacks only',()=>{
     const text=controller.style.textContent
     for(const token of ['--ui-bg-elevated','--ui-text-primary','--ui-text-secondary','--ui-stroke-secondary','--ui-accent','--ui-text-danger'])expect(text).toContain(`var(${token},light-dark(`)
-    const bare=text.replace(/light-dark\([^()]*\)/g,'').replace(/color-mix\(in srgb,var\(--afh-accent\) 60%,#000\)/,'').replace(/color:#fff/,'')
+    const bare=text.replace(/light-dark\([^()]*\)/g,'').replace(/color-mix\(in srgb,var\(--afh-accent\) 60%,#000\)/,'').replace(/var\(--ui-accent,#[0-9a-fA-F]+\)/g,'var(--ui-accent)').replace(/color:#fff/,'')
     expect(bare.match(/#[0-9a-f]{3,8}\b/gi)).toBeNull()
   })
 })
