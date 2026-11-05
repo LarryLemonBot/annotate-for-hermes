@@ -103,18 +103,18 @@ describe('selection popup polish',()=>{
     expect(css('.afh-panel').width).toBe('320px')
     expect(css('.afh-surface').animation).toContain('120ms cubic-bezier(.2,0,0,1)')
     expect(css('.afh-panel').animationDuration).toBe('160ms')
-    expect(css('.afh-surface').boxShadow).toBe('0 1px 3px #00000012,0 4px 16px #0000001f')
+    expect(css('.afh-surface').boxShadow).toBe('0 1px 3px light-dark(#00000012,#0000004d),0 4px 16px light-dark(#0000001f,#00000066)')
     const luminance=(rgb,brightness=1)=>rgb.match(/\d+/g).map(value=>Number(value)*brightness/255)
       .map(value=>value<=.04045?value/12.92:((value+.055)/1.055)**2.4)
       .reduce((sum,value,index)=>sum+value*[.2126,.7152,.0722][index],0)
     const save=css('[data-afh] .afh-save')
     expect(save.background).toBe('var(--afh-save-bg)')
-    expect(controller.style.textContent).toContain('--afh-accent:var(--ui-accent,#6395f6)')
+    expect(controller.style.textContent).toContain('--afh-accent:var(--ui-accent,light-dark(#2563eb,#6395f6))')
     expect(controller.style.textContent).toContain('--afh-save-bg:color-mix(in srgb,var(--afh-accent) 60%,#000)')
     // White text over the accent mixed 60% with black, for the fallback and a light and a dark host accent.
     const mixed=hex=>'rgb('+hex.match(/[0-9a-f]{2}/gi).map(v=>Math.round(parseInt(v,16)*.6)).join(',')+')'
     for(const accent of ['#6395f6','#2563eb','#8ab4ff'])for(const brightness of [1,.94])expect((luminance('rgb(255,255,255)',brightness)+.05)/(luminance(mixed(accent),brightness)+.05)).toBeGreaterThanOrEqual(4.5)
-    expect(controller.style.textContent).not.toContain('#2563eb')
+    expect(save.cssText).not.toContain('#2563eb')
     expect(css('.afh-save:hover').filter).toBe('brightness(.94)')
     expect(controller.style.textContent).toContain('prefers-reduced-motion:reduce')
   })
@@ -282,5 +282,11 @@ describe('selection popup polish',()=>{
     expect(targets).toContain(wrap)
     expect(targets).not.toContain(document.body)
     observe.mockRestore()
+  })
+  it('takes every colour from host theme tokens, with light-dark() fallbacks only',()=>{
+    const text=controller.style.textContent
+    for(const token of ['--ui-bg-elevated','--ui-text-primary','--ui-text-secondary','--ui-stroke-secondary','--ui-accent','--ui-text-danger'])expect(text).toContain(`var(${token},light-dark(`)
+    const bare=text.replace(/light-dark\([^()]*\)/g,'').replace(/color-mix\(in srgb,var\(--afh-accent\) 60%,#000\)/,'').replace(/color:#fff/,'')
+    expect(bare.match(/#[0-9a-f]{3,8}\b/gi)).toBeNull()
   })
 })
