@@ -100,7 +100,7 @@ const styles = `
 .afh-item .afh-quote{border:0;padding:0;color:var(--afh-fg);max-height:156px}
 .afh-comment{margin:10px 0 0;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--afh-muted)}
 .afh-status{position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-::highlight(annotate-for-hermes){background:color-mix(in srgb,var(--afh-accent) 16%,transparent);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--afh-accent) 45%,transparent)}
+::highlight(annotate-for-hermes){background:color-mix(in srgb,var(--ui-accent,#2563eb) 16%,transparent);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--ui-accent,#2563eb) 45%,transparent)}
 @keyframes afh-appear{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){[data-afh],[data-afh] *{animation:none!important;transition:none!important}}
 `
@@ -236,7 +236,7 @@ export class AnnotateController {
     this.panel.setAttribute('aria-label', existing ? 'Edit annotation' : 'Add annotation')
     const panel = this.panel
     const header = node('div', 'afh-header')
-    const cancel = button('Cancel annotation', 'close', () => { if (!this.busy) { this.pending.delete(entry.scope); this.close(true) } })
+    const cancel = button('Cancel annotation', 'close', () => { if (!this.busy) panel.escape?.() })
     header.append(node('span', 'afh-title', existing ? 'Edit annotation' : 'Add annotation'), cancel)
     const quote = node('blockquote', 'afh-quote', captured.text)
     const label = node('label', 'afh-comment-label', 'Comment')
@@ -285,8 +285,8 @@ export class AnnotateController {
     input.addEventListener('keydown', event => {
       if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.stopPropagation(); void commit() }
     })
-    const hint = node('span', 'afh-hint', `↵ ${existing ? 'save' : 'add'} · ⇧↵ new line · Esc discards`)
-    hint.setAttribute('aria-label', `Enter to ${existing ? 'save' : 'add'}, Shift Enter for a new line, Escape to discard`)
+    const hint = node('span', 'afh-hint', `↵ ${existing ? 'save' : 'add'} · ⇧↵ new line · Esc cancel`)
+    hint.setAttribute('aria-label', `Enter to ${existing ? 'save' : 'add'}, Shift Enter for a new line, Escape to cancel`)
     hint.id = 'afh-editor-hint'
     input.setAttribute('aria-describedby', hint.id)
     footer.append(hint, save)
@@ -349,7 +349,7 @@ export class AnnotateController {
     footer.append(node('span', 'afh-confirm-text', `“${stale.comment.trim().slice(0, 40)}”`), actions)
     panel.append(header, note, quote, footer)
     this.position()
-    discard.focus()
+    resume.focus()
   }
 
   // Same passage = same live DOM range (identical start and end points) on an annotation already in this draft.
