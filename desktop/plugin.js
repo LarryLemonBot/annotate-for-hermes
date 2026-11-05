@@ -144,8 +144,21 @@ export class AnnotateController {
     return this.host.state.focusedStoredSessionId?.get() || this.host.state.focusedSessionId.get() || 'new'
   }
 
+  // Connection-qualified scope for the FOCUSED chat. Prefer focusedSessionOwner
+  // whenever the host exposes it. A null/unresolved owner fails CLOSED (no ambient
+  // gateway/profile fallback) so a tile focus move across sources cannot stage into
+  // the wrong owner when durable chat IDs collide. Legacy hosts without the owner
+  // atom keep the focusedSessionProfile + connectionId ladder.
   scope() {
-    return JSON.stringify([this.host.state.connectionId?.get() || 'local', this.host.state.profile?.get() || 'default', this.session()])
+    if (this.host.state.focusedSessionOwner !== undefined) {
+      const owner = this.host.state.focusedSessionOwner?.get?.()
+      if (!owner || typeof owner.connectionId !== 'string' || !owner.connectionId.trim() || typeof owner.profile !== 'string' || !String(owner.profile).trim()) {
+        return null
+      }
+      return JSON.stringify([owner.connectionId.trim(), String(owner.profile).trim(), this.session()])
+    }
+    const profile = this.host.state.focusedSessionProfile?.get?.() || this.host.state.profile?.get?.() || 'default'
+    return JSON.stringify([this.host.state.connectionId?.get() || 'local', profile || 'default', this.session()])
   }
 
   mount() {
@@ -185,12 +198,14 @@ export class AnnotateController {
     // so a replaced paragraph is noticed), never the whole document, and only while one exists.
     this.observer = new MutationObserver(() => this.refreshHighlights())
     this.disposers.push(() => this.observer.disconnect())
-    for (const atom of [this.host.state.focusedStoredSessionId, this.host.state.focusedSessionId, this.host.state.connectionId, this.host.state.profile]) {
+    for (const atom of [this.host.state.focusedStoredSessionId, this.host.state.focusedSessionId, this.host.state.focusedSessionOwner, this.host.state.focusedSessionProfile, this.host.state.connectionId, this.host.state.profile]) {
       if (atom?.listen) this.disposers.push(atom.listen(() => {
         this.close(false)
         this.refreshHighlights()
-        const pending = this.pending.get(this.scope())
-        if (pending && !this.busy) this.edit(pending)
+        const scope = this.scope()
+        if (scope == null || this.busy) return
+        const pending = this.pending.get(scope)
+        if (pending) this.edit(pending)
       }))
     }
     this.disposers.push(this.api.onOpen(request => this.open(request)))
@@ -208,8 +223,10 @@ export class AnnotateController {
     this.toolbar?.remove()
     this.toolbar = null
     if (!selected) return
+    const scope = this.scope()
+    if (scope == null) return
     const {text, range, anchor} = selected
-    const captured = { text, range, anchor, session: this.session(), scope: this.scope() }
+    const captured = { text, range, anchor, session: this.session(), scope }
     this.toolbar = this.surface('toolbar')
     this.toolbar.setAttribute('role', 'toolbar')
     this.toolbar.setAttribute('aria-label', 'Selection annotation')
@@ -244,16 +261,17 @@ export class AnnotateController {
   }
 
   edit(captured, existing = captured.existing || null, attachment = captured.attachment || null) {
-    if (this.busy || captured.session !== this.session() || (captured.scope && captured.scope !== this.scope())) return
-    const pending = this.pending.get(this.scope())
+    const scope = this.scope()
+    if (this.busy || scope == null || captured.session !== this.session() || (captured.scope && captured.scope !== scope)) return
+    const pending = this.pending.get(scope)
     if (pending && pending !== captured) {
       if (pending.comment?.trim()) return this.conflict(pending, { captured, existing, attachment })
-      this.pending.delete(this.scope())
+      this.pending.delete(scope)
     }
     this.close(false)
     this.owner = captured.session
     this.anchor = captured.anchor
-    const entry = { ...captured, scope: this.scope(), existing, attachment, comment: captured.comment ?? existing?.comment ?? '' }
+    const entry = { ...captured, scope, existing, attachment, comment: captured.comment ?? existing?.comment ?? '' }
     this.pending.set(entry.scope, entry)
     this.panel = this.surface('editor')
     this.panel.setAttribute('role', 'dialog')
@@ -392,7 +410,7 @@ export class AnnotateController {
   }
 
   async save(entry) {
-    if (entry.scope !== this.scope() || this.disposed) throw new Error('Return to the original chat to add this annotation.')
+    if (entry.scope == null || this.scope() == null || entry.scope !== this.scope() || this.disposed) throw new Error('Return to the original chat to add this annotation.')
     const draft = await this.host.composer.getDraft(entry.session)
     if (draft === null) throw new Error('The draft is unavailable. Your comment is kept here; try again.')
     if (entry.scope !== this.scope() || this.disposed) throw new Error('The chat changed. Your comment is still here.')
@@ -427,7 +445,7 @@ export class AnnotateController {
 
   async writeDraft(session, scope, previous, next) {
     const current = await this.host.composer.getDraft(session)
-    if (this.disposed || scope !== this.scope()) throw new Error('The chat changed. Return to the original chat to continue.')
+    if (this.disposed || scope == null || this.scope() == null || scope !== this.scope()) throw new Error('The chat changed. Return to the original chat to continue.')
     if (current !== previous) throw new Error('The draft changed. Nothing was overwritten; try again.')
     if (!await this.host.composer.setDraft(session, next)) throw new Error('The draft is unavailable. Nothing was changed; try again.')
   }
@@ -438,6 +456,7 @@ export class AnnotateController {
     if (!data) return
     const session = this.session()
     const scope = this.scope()
+    if (scope == null) return
     const draft = request.editable ? await this.host.composer.getDraft(session) ?? '' : ''
     if (this.disposed || this.busy || this.scope() !== scope) return
     const attachment = readAttachments(draft, this.api).find(part => part.value === request.value)
@@ -481,11 +500,11 @@ export class AnnotateController {
   }
 
   async remove(session, attachment, id, scope = this.scope()) {
-    if (this.busy || !attachment) return null
+    if (this.busy || !attachment || scope == null) return null
     this.busy = true
     try {
       const draft = await this.host.composer.getDraft(session) ?? ''
-      if (this.disposed || this.scope() !== scope) return null
+      if (this.disposed || this.scope() == null || this.scope() !== scope) return null
       const current = readAttachments(draft, this.api).find(part => part.token === attachment.token)
       if (!current) throw new Error('This annotation changed. Reopen it to continue.')
       const items = id ? current.data.annotations.filter(item => item.id !== id) : []
