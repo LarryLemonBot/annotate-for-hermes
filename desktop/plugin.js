@@ -78,10 +78,16 @@ const styles = `
 [data-afh] .afh-input{display:block;resize:none;width:100%;min-height:52px;max-height:120px;border:1px solid var(--afh-line);border-radius:8px;padding:8px 10px;background:transparent;color:var(--afh-fg);font:inherit;line-height:1.55}
 [data-afh] .afh-input::placeholder{color:var(--afh-muted);opacity:.7}
 .afh-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}
-.afh-hint{font-size:11px;color:var(--afh-muted)}
-[data-afh] .afh-save{height:28px;padding:0 10px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:#2563eb;color:#fff;transition:filter 100ms ease,transform 100ms ease}
+.afh-hint{font-size:11px;color:var(--afh-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+[data-afh] .afh-save{--afh-save-bg:color-mix(in srgb,var(--afh-accent) 60%,#000);height:28px;padding:0 10px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:var(--afh-save-bg);color:#fff;transition:filter 100ms ease,transform 100ms ease}
 .afh-save:hover{filter:brightness(.94)}
 .afh-save:active{transform:scale(.96)}
+[data-afh] .afh-save[data-duplicate]{background:transparent;color:var(--afh-muted);border:1px solid var(--afh-line);filter:none;transform:none;cursor:default;opacity:1}
+.afh-confirm{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}
+.afh-confirm-text{font-size:12px;color:var(--afh-fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.afh-confirm-actions{display:flex;gap:6px}
+[data-afh] .afh-secondary{height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--afh-line)}
+.afh-secondary:hover{background:var(--afh-hover)}
 .afh-error{font-size:12px;color:var(--ui-text-danger,#ed8d88);margin-top:10px}
 .afh-error:empty{display:none}
 .afh-items{list-style:none;padding:0;margin:0;max-height:min(360px,50vh);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
@@ -142,6 +148,7 @@ export class AnnotateController {
     listen(document, 'keydown', event => {
       if (event.key === 'Escape' && (this.panel || this.toolbar)) {
         event.stopPropagation()
+        if (this.panel?.dataset.afh === 'editor' && this.panel.escape) { this.panel.escape(); return }
         this.close(true)
       }
     }, true)
@@ -150,9 +157,10 @@ export class AnnotateController {
     })
     listen(window, 'resize', () => this.position())
     listen(document, 'scroll', () => { this.toolbar?.remove(); this.toolbar = null }, true)
-    const observer = new MutationObserver(() => { if (this.ranges.size) this.refreshHighlights() })
-    observer.observe(document.body, { childList: true, characterData: true, subtree: true })
-    this.disposers.push(() => observer.disconnect())
+    // Watch only the passages that hold a tracked highlight (the parent of each range's element,
+    // so a replaced paragraph is noticed), never the whole document, and only while one exists.
+    this.observer = new MutationObserver(() => this.refreshHighlights())
+    this.disposers.push(() => this.observer.disconnect())
     for (const atom of [this.host.state.focusedStoredSessionId, this.host.state.focusedSessionId, this.host.state.connectionId, this.host.state.profile]) {
       if (atom?.listen) this.disposers.push(atom.listen(() => {
         this.close(false)
@@ -194,8 +202,9 @@ export class AnnotateController {
   place(element, anchor) {
     if (!element || !anchor) return
     const box = element.getBoundingClientRect()
-    const above = anchor.top - box.height - 8
-    const top = above >= 12 ? above : anchor.bottom + 8
+    const below = anchor.bottom + 10
+    const above = anchor.top - box.height - 10
+    const top = below + box.height <= window.innerHeight - 12 || above < 12 ? below : above
     element.style.left = `${Math.max(12, Math.min(anchor.left, window.innerWidth - box.width - 12))}px`
     element.style.top = `${Math.max(12, Math.min(top, window.innerHeight - box.height - 12))}px`
   }
@@ -213,11 +222,9 @@ export class AnnotateController {
   edit(captured, existing = captured.existing || null, attachment = captured.attachment || null) {
     if (this.busy || captured.session !== this.session() || (captured.scope && captured.scope !== this.scope())) return
     const pending = this.pending.get(this.scope())
-    const resumed = pending && pending !== captured
-    if (resumed) {
-      captured = pending
-      existing = pending.existing
-      attachment = pending.attachment
+    if (pending && pending !== captured) {
+      if (pending.comment?.trim()) return this.conflict(pending, { captured, existing, attachment })
+      this.pending.delete(this.scope())
     }
     this.close(false)
     this.owner = captured.session
@@ -253,6 +260,7 @@ export class AnnotateController {
       save.disabled = true
       cancel.disabled = true
       input.readOnly = true
+      let duplicate = false
       try {
         await this.save(entry)
         this.pending.delete(entry.scope)
@@ -260,23 +268,100 @@ export class AnnotateController {
           if (this.panel === panel) this.close(true)
           this.status.textContent = existing ? 'Annotation updated.' : 'Annotation added to your draft.'
         }
-      } catch (failure) { error.textContent = failure.message }
-      finally { this.busy = false; save.disabled = false; cancel.disabled = false; input.readOnly = false }
+      } catch (failure) {
+        if (failure.duplicate) {
+          duplicate = true
+          save.dataset.duplicate = ''
+          save.textContent = 'Already added'
+          save.setAttribute('aria-label', 'This selection is already in your draft')
+          this.status.textContent = 'This selection is already in your draft.'
+          hint.textContent = 'Esc closes'
+          hint.setAttribute('aria-label', 'This selection is already in your draft. Escape to close')
+          panel.escape = () => { this.pending.delete(entry.scope); this.close(true) }
+        } else error.textContent = failure.message
+      }
+      finally { this.busy = false; save.disabled = duplicate; cancel.disabled = false; input.readOnly = false }
     }
     input.addEventListener('keydown', event => {
       if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.stopPropagation(); void commit() }
     })
-    const hint = node('span', 'afh-hint', `Enter to ${existing ? 'save' : 'add'} · Shift Enter for a new line · Esc to close`)
+    const hint = node('span', 'afh-hint', `↵ ${existing ? 'save' : 'add'} · ⇧↵ new line · Esc discards`)
+    hint.setAttribute('aria-label', `Enter to ${existing ? 'save' : 'add'}, Shift Enter for a new line, Escape to discard`)
     hint.id = 'afh-editor-hint'
     input.setAttribute('aria-describedby', hint.id)
     footer.append(hint, save)
     this.panel.append(header, quote, label, input, footer, error)
-    if (resumed) {
-      error.textContent = 'Your unfinished comment was restored. Add or save it, or cancel it before starting another.'
+    panel.escape = () => {
+      if (this.busy) return
+      if (!input.value.trim()) { this.pending.delete(entry.scope); this.close(true); return }
+      if (panel.querySelector('.afh-confirm')) { resume(); return }
+      footer.hidden = true
+      const row = node('div', 'afh-confirm')
+      row.setAttribute('role', 'group')
+      row.setAttribute('aria-label', 'Unsaved comment')
+      const actions = node('div', 'afh-confirm-actions')
+      const keep = button('Resume editing', null, () => resume(), 'afh-secondary')
+      keep.textContent = 'Resume'
+      const discard = button('Discard comment', null, () => { this.pending.delete(entry.scope); this.close(true) }, 'afh-save')
+      discard.textContent = 'Discard'
+      actions.append(keep, discard)
+      row.append(node('span', 'afh-confirm-text', 'Discard this comment?'), actions)
+      panel.insertBefore(row, error)
+      input.readOnly = true
+      this.position()
+      keep.focus()
+    }
+    const resume = () => {
+      panel.querySelector('.afh-confirm')?.remove()
+      footer.hidden = false
+      input.readOnly = false
+      this.position()
+      input.focus()
     }
     resize()
     this.position()
     input.focus()
+  }
+
+  conflict(stale, next) {
+    this.close(false)
+    this.owner = stale.session
+    this.anchor = next.captured.anchor || stale.anchor
+    const panel = this.panel = this.surface('editor')
+    panel.setAttribute('role', 'dialog')
+    panel.setAttribute('aria-label', 'Unfinished comment')
+    const header = node('div', 'afh-header')
+    header.append(node('span', 'afh-title', 'Unfinished comment'), button('Close', 'close', () => this.close(true)))
+    const note = node('p', 'afh-comment', 'You have an unsaved comment on another selection.')
+    note.style.marginTop = '0'
+    const quote = node('blockquote', 'afh-quote', stale.text)
+    const footer = node('div', 'afh-confirm')
+    const actions = node('div', 'afh-confirm-actions')
+    const resume = button('Resume the unsaved comment', null, () => { this.close(false); this.edit(stale) }, 'afh-secondary')
+    resume.textContent = 'Resume'
+    const discard = button('Discard it and annotate the new selection', null, () => {
+      this.pending.delete(stale.scope)
+      this.close(false)
+      this.edit(next.captured, next.existing, next.attachment)
+    }, 'afh-save')
+    discard.textContent = 'Discard'
+    actions.append(resume, discard)
+    footer.append(node('span', 'afh-confirm-text', `“${stale.comment.trim().slice(0, 40)}”`), actions)
+    panel.append(header, note, quote, footer)
+    this.position()
+    discard.focus()
+  }
+
+  // Same passage = same live DOM range (identical start and end points) on an annotation already in this draft.
+  samePassage(entry, annotations) {
+    if (!entry.range) return false
+    return annotations.some(item => {
+      const tracked = this.ranges.get(item.id)
+      if (!tracked || tracked.scope !== entry.scope || tracked.text !== entry.text) return false
+      try {
+        return tracked.range.compareBoundaryPoints(Range.START_TO_START, entry.range) === 0 && tracked.range.compareBoundaryPoints(Range.END_TO_END, entry.range) === 0
+      } catch { return false }
+    })
   }
 
   async save(entry) {
@@ -295,7 +380,10 @@ export class AnnotateController {
       const index = annotations.findIndex(value => value.id === id)
       if (index < 0 || JSON.stringify(annotations[index]) !== JSON.stringify(entry.existing)) throw new Error('This annotation changed. Reopen it to continue.')
       annotations[index] = item
-    } else annotations.push(item)
+    } else {
+      if (this.samePassage(entry, annotations)) throw Object.assign(new Error('Already added'), { duplicate: true })
+      annotations.push(item)
+    }
     const next = replaceAttachment(draft, previous, annotations, this.api)
     await this.writeDraft(entry.session, entry.scope, draft, next)
     if (entry.range) this.ranges.set(id, { scope: entry.scope, range: entry.range, text: entry.text })
@@ -378,10 +466,26 @@ export class AnnotateController {
     } finally { this.busy = false }
   }
 
+  observeRanges() {
+    if (!this.observer) return
+    this.observer.disconnect()
+    const watched = new Set()
+    for (const { range } of this.ranges.values()) {
+      const ancestor = range.commonAncestorContainer
+      const element = ancestor.nodeType === 1 ? ancestor : ancestor.parentElement
+      const target = element?.parentElement || element
+      if (target && !watched.has(target)) {
+        watched.add(target)
+        this.observer.observe(target, { childList: true, characterData: true, subtree: true })
+      }
+    }
+  }
+
   refreshHighlights() {
     for (const [id, entry] of this.ranges) {
       if (!entry.range.commonAncestorContainer.isConnected || entry.range.collapsed || entry.range.toString() !== entry.text) this.ranges.delete(id)
     }
+    this.observeRanges()
     if (!globalThis.CSS?.highlights || !globalThis.Highlight) return
     const ranges = [...this.ranges.values()].filter(entry => entry.scope === this.scope() && entry.range.commonAncestorContainer.isConnected).map(entry => entry.range)
     CSS.highlights.set('annotate-for-hermes', new Highlight(...ranges))
