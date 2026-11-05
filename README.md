@@ -10,7 +10,7 @@ Select a passage, choose **Add to chat**, and add a comment. Repeat across earli
 
 **Development preview. This is not yet a one-click plugin for unmodified Hermes.** The attachment UI requires the proposed `host.composer.annotations` API, including `captureSelection()`. The native extension is included under `integration/` for developers and upstream review.
 
-Installing the plugin alone in stock Hermes will show a compatibility notice. It will not modify Hermes to make itself work. It is not currently in the curated plugin catalog.
+Installing the plugin alone in stock Hermes will show a compatibility notice. It will not modify Hermes to make itself work. It is not currently in the curated plugin catalog. Ordinary in-app install and update remain blocked until the annotations API ships in a stable Hermes release and catalog review completes. The manifest `requires_hermes` floor documents intent only; stock builds at that floor still lack `host.composer.annotations`.
 
 The native integration is proposed in [Hermes PR #146959](https://github.com/NousResearch/hermes-agent/pull/146959). [Catalog PR #146960](https://github.com/NousResearch/hermes-agent/pull/146960) is a draft pending that API release.
 
@@ -18,11 +18,14 @@ The goal is a normal in-app install after the native API is available and the pl
 
 ## Interaction
 
-- One selection action: **Add to chat**.
+- Selection toolbar action: **Add to chat**.
+- Editor primary action: **Add to reply** for a new annotation; **Save** when editing an existing one. A duplicate selection shows **Already added**.
+- The editor labels the quote as **Selected text** (read-only) and the field as **Comment**.
 - Enter stages a comment; Shift+Enter inserts a line break. Staging never sends a message.
+- Escape or the close control on an unfinished comment asks **Resume** or **Discard**.
 - Multiple selections and comments stay paired in one attachment.
 - The ordinary reply keeps its contents and whitespace.
-- Selected text and comments retain their full contents, including code indentation.
+- Selected text and comments retain their full contents, including code indentation. Host limits (100 items, 64k per field, 512k encoded) surface recovery copy; drafts are not truncated on failure.
 - Comments remain editable when a draft write fails. Unfinished comments stay in memory for their original connection, profile, and chat while the plugin remains loaded.
 - A compact preview uses the current Hermes theme, short motion, and the operating system's reduced-motion preference.
 - Normal copy commands, model selection, tools, and other plugins are not changed.
@@ -54,13 +57,19 @@ npm --prefix tests test
 hermes plugins validate .
 ```
 
-`tests/native.mjs` verifies an isolated development renderer through Hermes' own performance-test connection. Set `HERMES_SOURCE_DIR`, `HERMES_TEST_HOME`, `HERMES_TEST_CDP_PORT`, and `HERMES_TEST_DEV_PORT`. The script refuses a desktop whose plugin root differs from the disposable test home. It checks three distinct passages, a single native composer chip, exact comments, edit/remove, draft preservation, reduced motion, and zero automatic submissions.
+Current automated coverage in this repository:
+
+- **Unit (vitest):** 27 tests covering selection popup polish, Escape Resume/Discard, duplicate handling, highlight cleanup, draft preservation, and host limit recovery copy.
+- **`hermes plugins validate`:** manifest, security scan, desktop SDK surface, and no core override on the plugin tip.
+- **`tests/native.mjs`:** isolated development renderer through Hermes' performance-test connection. Set `HERMES_SOURCE_DIR`, `HERMES_TEST_HOME`, `HERMES_TEST_CDP_PORT`, and `HERMES_TEST_DEV_PORT`. The script refuses a desktop whose plugin root differs from the disposable test home. It checks three distinct passages, a single native composer chip, exact comments, edit/remove, draft preservation, reduced motion, and zero automatic submissions. It uses synthetic assistant messages and does not call a language model.
+
+Additional disposable real-build checks (local artifacts, not CI) have exercised light/dark/system UI, keyboard flows, and annotation wire format against **OpenAI-family TEST DOUBLE** stubs and, separately, a real Grok path. Those runs are not a claim of stock-Hermes catalog readiness, cross-provider real-model coverage, or Beam/Solar certification.
 
 The screenshot below uses synthetic fixture messages, not personal chats.
 
 ![Three comments in one annotation attachment](docs/annotation-preview.png)
 
-Detailed native results are local artifacts, excluded from Git. The native run uses synthetic assistant messages and does not call a language model. Screen-reader behavior, touch input, and other operating systems require additional testing.
+Detailed native and real-build results are local artifacts, excluded from Git. Screen-reader behavior, touch input, and other operating systems require additional testing.
 
 ## Update behavior and limits
 
