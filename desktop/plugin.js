@@ -56,12 +56,12 @@ export function replaceAttachment(draft, previous, annotations, api) {
 }
 
 const styles = `
-[data-afh]{--afh-bg:var(--ui-bg-primary,light-dark(#ffffff,#2c2c2e));--afh-fg:var(--ui-text-primary,light-dark(#18181b,#f4f4f5));--afh-muted:var(--ui-text-secondary,light-dark(#5f5f68,#a9a9b1));--afh-line:var(--ui-stroke-secondary,light-dark(#0000001f,#ffffff20));--afh-hover:var(--chrome-action-hover,light-dark(#0000000a,#ffffff0c));--afh-accent:var(--ui-accent,light-dark(#2563eb,#6395f6));--afh-danger:var(--ui-text-danger,light-dark(#b42318,#ed8d88));box-sizing:border-box;color:var(--afh-fg);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;z-index:var(--z-modal-popover,1000)}
+[data-afh]{--afh-bg:light-dark(#ffffff,#2c2c2e);--afh-fg:var(--ui-text-primary,light-dark(#18181b,#f4f4f5));--afh-muted:var(--ui-text-secondary,light-dark(#5f5f68,#a9a9b1));--afh-line:var(--ui-stroke-secondary,light-dark(#0000001f,#ffffff20));--afh-hover:var(--chrome-action-hover,light-dark(#0000000a,#ffffff0c));--afh-accent:var(--ui-accent,light-dark(#2563eb,#6395f6));--afh-danger:var(--ui-text-danger,light-dark(#b42318,#ed8d88));box-sizing:border-box;color:var(--afh-fg);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;z-index:var(--z-modal-popover,1000)}
 [data-afh] *,[data-afh] *::before,[data-afh] *::after{box-sizing:border-box}
 [data-afh] button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;flex-shrink:0}
 [data-afh] button:disabled{opacity:.5;cursor:wait}
 [data-afh] button:focus-visible,[data-afh] textarea:focus-visible{outline:2px solid var(--afh-accent);outline-offset:3px}
-.afh-surface{position:fixed;background:var(--afh-bg);background-color:var(--afh-bg);isolation:isolate;border:1px solid var(--afh-line);box-shadow:0 1px 3px light-dark(#00000012,#0000004d),0 4px 16px light-dark(#0000001f,#00000066);animation:afh-appear 120ms cubic-bezier(.2,0,0,1) both}
+.afh-surface{position:fixed;background:var(--afh-bg);isolation:isolate;border:1px solid var(--afh-line);box-shadow:0 1px 3px light-dark(#00000012,#0000004d),0 4px 16px light-dark(#0000001f,#00000066);animation:afh-appear 120ms cubic-bezier(.2,0,0,1) both}
 .afh-toolbar{height:28px;border-radius:8px;padding:2px}
 .afh-add{display:flex;align-items:center;gap:7px;height:22px;padding:0 8px;border-radius:5px}
 .afh-add:hover,.afh-icon-button:hover{background:var(--afh-hover)}
