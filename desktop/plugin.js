@@ -55,6 +55,27 @@ export function replaceAttachment(draft, previous, annotations, api) {
   return token + (draft ? `\n\n${draft}` : '')
 }
 
+/** Host response-annotations caps (composer SDK): ≤100 items, ≤64k per text/comment, ≤512k wire JSON. */
+const MAX_ANNOTATIONS = 100
+const MAX_FIELD_CHARS = 64_000
+
+export function limitRecoveryMessage(annotations) {
+  if (annotations.length > MAX_ANNOTATIONS) {
+    return 'This draft already has 100 annotations. Remove one or send this batch before adding more.'
+  }
+  if (annotations.some(item => item.text.length > MAX_FIELD_CHARS || item.comment.length > MAX_FIELD_CHARS)) {
+    return 'That selection or comment is too long. Shorten or split the selected text or comments, then try again.'
+  }
+  return 'These annotations are too large to send together. Shorten or split the selected text or comments, then try again.'
+}
+
+function mapFormatLimitError(error, annotations) {
+  const message = String(error?.message || '')
+  if (!/invalid response annotations|annotation limit reached|limit/i.test(message)) return null
+  return limitRecoveryMessage(annotations)
+}
+
+
 const styles = `
 /* Popover fill is opaque light-dark() so content behind cannot show through; follows color-scheme (light/dark/system). Host chrome glass tokens are not used for fill. */
 [data-afh]{--afh-bg:light-dark(#ffffff,#2c2c2e);--afh-fg:var(--ui-text-primary,light-dark(#18181b,#f4f4f5));--afh-muted:var(--ui-text-secondary,light-dark(#5f5f68,#a9a9b1));--afh-line:var(--ui-stroke-secondary,light-dark(#0000001f,#ffffff20));--afh-hover:var(--chrome-action-hover,light-dark(#0000000a,#ffffff0c));--afh-accent:var(--ui-accent,light-dark(#2563eb,#6395f6));--afh-danger:var(--ui-text-danger,light-dark(#b42318,#ed8d88));box-sizing:border-box;color:var(--afh-fg);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;z-index:var(--z-modal-popover,1000)}
@@ -385,7 +406,15 @@ export class AnnotateController {
       if (this.samePassage(entry, annotations)) throw Object.assign(new Error('Already added'), { duplicate: true })
       annotations.push(item)
     }
-    const next = replaceAttachment(draft, previous, annotations, this.api)
+    if (annotations.length > MAX_ANNOTATIONS || annotations.some(value => value.text.length > MAX_FIELD_CHARS || value.comment.length > MAX_FIELD_CHARS)) {
+      throw new Error(limitRecoveryMessage(annotations))
+    }
+    let next
+    try {
+      next = replaceAttachment(draft, previous, annotations, this.api)
+    } catch (error) {
+      throw new Error(mapFormatLimitError(error, annotations) || error.message)
+    }
     await this.writeDraft(entry.session, entry.scope, draft, next)
     if (entry.range) this.ranges.set(id, { scope: entry.scope, range: entry.range, text: entry.text })
     this.refreshHighlights()
