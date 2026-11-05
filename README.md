@@ -64,13 +64,13 @@ Current automated coverage in this repository:
 - **`hermes plugins validate`:** manifest, security scan, desktop SDK surface, and no core override on the plugin tip.
 - **`tests/native.mjs`:** isolated development renderer through Hermes' performance-test connection. Set `HERMES_SOURCE_DIR`, `HERMES_TEST_HOME`, `HERMES_TEST_CDP_PORT`, and `HERMES_TEST_DEV_PORT`. The script refuses a desktop whose plugin root differs from the disposable test home. It checks three distinct passages, a single native composer chip, exact comments, edit/remove, draft preservation, reduced motion, and zero automatic submissions. It uses synthetic assistant messages and does not call a language model.
 
-A local fixture check on macOS used a production-built renderer of a Hermes desktop build containing exactly `integration/response-annotations.patch`, a real local backend, and a fresh disposable Hermes home and user-data directory. It installed this plugin with `hermes plugins install --ref` and enabled and disabled it with the visible **Desktop** switch. It confirmed that ordinary reply text with doubled spaces, a leading indent, and a tab, plus an indented code selection and multi-line comments, came through add, edit, and remove unchanged. It also confirmed that a saved annotation survived both an app restart and a full backend restart with a successful `session.resume`. The assistant text came from a deterministic local stub, not a model.
+A local fixture check on macOS used a production-built renderer of a Hermes desktop build containing exactly `integration/response-annotations.patch`, a real local backend, and a fresh disposable Hermes home and user-data directory. It installed this plugin with `hermes plugins install --ref` and enabled and disabled it with the visible **Desktop** switch. It confirmed that ordinary reply text with doubled spaces, a leading indent, and a tab, plus an indented code selection and multi-line comments, came through add, edit, and remove unchanged. It also confirmed that a saved draft annotation persisted through both an app restart and a full backend restart with a successful `session.resume`. Separate sent-annotation evidence was not captured in this fresh fixture (draft only). The assistant text came from a deterministic local stub, not a model.
 
 Additional disposable real-build checks (local artifacts, not CI) have exercised light/dark/system UI, keyboard flows, and annotation wire format against **OpenAI-family TEST DOUBLE** stubs and, separately, a real Grok path. Those runs are not a claim of stock-Hermes catalog readiness, cross-provider real-model coverage, or Beam/Solar certification.
 
 The screenshot below uses synthetic fixture messages, not personal chats.
 
-![Three comments in one annotation attachment](docs/annotation-preview.png)
+![Two comments in one annotation attachment](docs/annotation-preview.png)
 
 Detailed native and real-build results are local artifacts, excluded from Git. Runtime evidence is macOS (Apple silicon) only. Windows, Linux, screen-reader behavior, and touch input are untested.
 
@@ -84,7 +84,7 @@ Draft attachments are self-contained and survive ordinary Hermes draft persisten
 
 ## Releasing
 
-See [docs/RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md). No release or catalog pin exists yet.
+See [docs/RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md). No production-ready release exists yet; the existing draft catalog pin remains blocked.
 
 ## License
 

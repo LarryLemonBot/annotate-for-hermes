@@ -1,6 +1,6 @@
 # Maintainer release checklist
 
-This checklist is for a future release. It does not mean a release, tag, or catalog pin exists. Do not publish while any **Blocking** item is open.
+This checklist is for a future production-ready release. No production-ready release exists yet; the existing draft catalog pin remains blocked. Do not publish while any **Blocking** item is open.
 
 ## Blocking (upstream)
 
@@ -17,6 +17,7 @@ This checklist is for a future release. It does not mean a release, tag, or cata
 - [ ] Fresh-profile fixture: install with `--ref <full sha>`, then use the visible Desktop switch to enable, disable, and re-enable the plugin. Confirm add, edit, and remove keep ordinary text and whitespace exact, and that a saved draft survives an app restart and a backend restart with a successful `session.resume`.
 - [ ] Stock Hermes without the API shows the compatibility notice and changes nothing.
 - [ ] Light and dark screenshots are refreshed from synthetic fixtures only.
+- [ ] Official Hermes updater verification in a fully isolated environment (separate HOME, package manager, venv, shims, and fleet): confirm the plugin survives an official update path. **Blocking release check** — do not release while unverified.
 
 ## Metadata and catalog
 
@@ -32,5 +33,4 @@ This checklist is for a future release. It does not mean a release, tag, or cata
 
 ## Not yet verified
 
-- Update survival through the official Hermes updater in a fully isolated environment (separate HOME, package manager, venv, shims, and fleet).
 - Windows, Linux, screen readers, and touch input.
