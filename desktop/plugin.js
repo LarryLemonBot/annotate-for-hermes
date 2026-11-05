@@ -82,25 +82,27 @@ const styles = `
 [data-afh] *,[data-afh] *::before,[data-afh] *::after{box-sizing:border-box}
 [data-afh] button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;flex-shrink:0}
 [data-afh] button:disabled{opacity:.5;cursor:wait}
-[data-afh] button:focus-visible,[data-afh] textarea:focus-visible{outline:2px solid var(--afh-accent);outline-offset:3px}
+[data-afh] button:focus-visible{outline:2px solid var(--afh-accent);outline-offset:3px}
 .afh-surface{position:fixed;background:var(--afh-bg);isolation:isolate;border:1px solid var(--afh-line);box-shadow:0 1px 3px light-dark(#00000012,#0000004d),0 4px 16px light-dark(#0000001f,#00000066);animation:afh-appear 120ms cubic-bezier(.2,0,0,1) both}
 .afh-toolbar{height:28px;border-radius:8px;padding:2px}
 .afh-add{display:flex;align-items:center;gap:7px;height:22px;padding:0 8px;border-radius:5px}
 .afh-add:hover,.afh-icon-button:hover{background:var(--afh-hover)}
 .afh-icon{display:inline-flex;width:16px;height:16px;align-items:center;justify-content:center;flex:none}
 .afh-icon svg{width:100%;height:100%}
-.afh-panel{width:320px;max-width:calc(100vw - 24px);border-radius:8px;padding:12px;max-height:calc(100vh - 24px);overflow:auto;overscroll-behavior:contain;animation-duration:160ms}
+.afh-panel{width:320px;max-width:calc(100vw - 24px);border-radius:8px;padding:10px;max-height:calc(100vh - 24px);overflow:auto;overscroll-behavior:contain;animation-duration:160ms}
 .afh-panel:focus{outline:none}
 [data-afh="review"]{width:min(360px,calc(100vw - 24px))}
-.afh-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.afh-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
 .afh-title{font-size:13px;font-weight:600;letter-spacing:-.1px}
 .afh-icon-button{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;transition:background 100ms ease,color 100ms ease}
-.afh-quote{margin:0;padding:0 0 0 11px;border-left:2px solid var(--afh-line);color:var(--afh-muted);font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;max-height:62px;overflow:auto}
-.afh-comment-label{display:block;margin:16px 0 6px;font-size:12px;color:var(--afh-muted)}
-[data-afh] .afh-input{display:block;resize:none;width:100%;min-height:52px;max-height:120px;border:1px solid var(--afh-line);border-radius:8px;padding:8px 10px;background:transparent;color:var(--afh-fg);font:inherit;line-height:1.55}
+.afh-selected-label{display:block;margin:0 0 6px;font-size:12px;color:var(--afh-muted)}
+.afh-quote{margin:0;padding:8px 10px;border-left:2px solid var(--afh-line);border-radius:0 6px 6px 0;background:color-mix(in srgb,var(--afh-fg) 4%,transparent);color:var(--afh-fg);font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;max-height:62px;overflow:auto;user-select:text;-webkit-user-select:text}
+.afh-comment-label{display:block;margin:12px 0 6px;font-size:12px;color:var(--afh-muted)}
+[data-afh] .afh-input{display:block;resize:none;width:100%;min-height:52px;max-height:120px;border:1px solid var(--afh-line);border-radius:8px;padding:8px 10px;background:transparent;color:var(--afh-fg);font:inherit;line-height:1.55;outline:none}
+[data-afh] .afh-input:focus-visible{border-color:var(--afh-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--afh-accent) 28%,transparent)}
 [data-afh] .afh-input::placeholder{color:var(--afh-muted);opacity:.7}
-.afh-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}
-.afh-hint{font-size:11px;color:var(--afh-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.afh-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:10px}
+.afh-hint{font-size:11px;color:var(--afh-muted);white-space:normal;line-height:1.35;min-width:0;flex:1 1 8rem}
 [data-afh] .afh-save{--afh-save-bg:color-mix(in srgb,var(--afh-accent) 60%,#000);height:28px;padding:0 10px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:var(--afh-save-bg);color:#fff;transition:filter 100ms ease,transform 100ms ease}
 .afh-save:hover{filter:brightness(.94)}
 .afh-save:active{transform:scale(.96)}
@@ -119,10 +121,10 @@ const styles = `
 .afh-number{font-size:12px;color:var(--afh-muted);padding-top:6px;font-variant-numeric:tabular-nums}
 .afh-item-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px;color:var(--afh-muted);font-size:12px}
 .afh-actions{display:flex;gap:2px;margin-right:-6px}
-.afh-item .afh-quote{border:0;padding:0;color:var(--afh-fg);max-height:156px}
+.afh-item .afh-quote{border:0;padding:0;border-radius:0;background:transparent;color:var(--afh-fg);max-height:156px}
 .afh-comment{margin:10px 0 0;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--afh-muted)}
 .afh-status{position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-::highlight(annotate-for-hermes){background:color-mix(in srgb,var(--ui-accent,#2563eb) 16%,transparent);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--ui-accent,#2563eb) 45%,transparent)}
+::highlight(annotate-for-hermes){background:color-mix(in srgb,var(--ui-accent,#2563eb) 9%,transparent);text-decoration:underline dashed;text-decoration-thickness:1px;text-underline-offset:2px;text-decoration-color:color-mix(in srgb,var(--ui-accent,#2563eb) 40%,transparent)}
 @keyframes afh-appear{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){[data-afh],[data-afh] *{animation:none!important;transition:none!important}}
 `
@@ -260,7 +262,10 @@ export class AnnotateController {
     const header = node('div', 'afh-header')
     const cancel = button('Cancel annotation', 'close', () => { if (!this.busy) panel.escape?.() })
     header.append(node('span', 'afh-title', existing ? 'Edit annotation' : 'Add annotation'), cancel)
+    const selectedLabel = node('div', 'afh-selected-label', 'Selected text')
+    selectedLabel.id = 'afh-selected-label'
     const quote = node('blockquote', 'afh-quote', captured.text)
+    quote.setAttribute('aria-labelledby', selectedLabel.id)
     const label = node('label', 'afh-comment-label', 'Comment')
     const input = node('textarea', 'afh-input')
     input.id = 'afh-comment'
@@ -274,8 +279,8 @@ export class AnnotateController {
     const footer = node('div', 'afh-footer')
     const error = node('div', 'afh-error')
     error.setAttribute('role', 'alert')
-    const save = button(existing ? 'Save annotation' : 'Add annotation to draft', null, () => commit(), 'afh-save')
-    save.textContent = existing ? 'Save' : 'Add'
+    const save = button(existing ? 'Save annotation' : 'Add to reply', null, () => commit(), 'afh-save')
+    save.textContent = existing ? 'Save' : 'Add to reply'
     const commit = async () => {
       if (this.busy || this.disposed) return
       this.busy = true
@@ -307,12 +312,12 @@ export class AnnotateController {
     input.addEventListener('keydown', event => {
       if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.stopPropagation(); void commit() }
     })
-    const hint = node('span', 'afh-hint', `↵ ${existing ? 'save' : 'add'} · ⇧↵ new line · Esc cancel`)
-    hint.setAttribute('aria-label', `Enter to ${existing ? 'save' : 'add'}, Shift Enter for a new line, Escape to cancel`)
+    const hint = node('span', 'afh-hint', existing ? '↵ save · ⇧↵ new line · Esc cancel' : '↵ add · ⇧↵ newline · Esc cancel')
+    hint.setAttribute('aria-label', `Enter to ${existing ? 'save' : 'add to reply'}, Shift Enter for a new line, Escape to cancel`)
     hint.id = 'afh-editor-hint'
     input.setAttribute('aria-describedby', hint.id)
     footer.append(hint, save)
-    this.panel.append(header, quote, label, input, footer, error)
+    this.panel.append(header, selectedLabel, quote, label, input, footer, error)
     panel.escape = () => {
       if (this.busy) return
       if (!input.value.trim()) { this.pending.delete(entry.scope); this.close(true); return }
