@@ -4,7 +4,7 @@ export function createSdk() {
   const api = {
     version:1,
     captureSelection:()=>null,
-    parse(value) { try { const p=JSON.parse(value); return p.type==='response-annotations' && p.version===1 && p.annotations.length>0 && p.annotations.length<=100 && p.annotations.every(a=>a.text && a.text.length<=64000 && a.comment.length<=64000) ? p : null } catch { return null } },
+    parse(value) { try { const p=JSON.parse(value); return p.type==='response-annotations' && p.version===1 && p.annotations.length>0 && p.annotations.length<=1000 && p.annotations.every(a=>a.text && a.text.length<=64000 && a.comment.length<=64000) ? p : null } catch { return null } },
     format(value) { if(!this.parse(JSON.stringify(value))) throw new Error('Annotation limit reached.'); return '@annotation:`'+JSON.stringify(value).replace(/[`@<>/]/g,c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0'))+'`' },
     onOpen(fn) {state.open=fn;return()=>{state.open=null}}
   }

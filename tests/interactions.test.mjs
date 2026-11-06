@@ -142,3 +142,18 @@ describe('dictation comments',()=>{
     expect(controller.markers.size).toBe(0)
   })
 })
+
+describe('large annotation batches',()=>{
+  it('stages the thousandth annotation and reviews/removes it without losing any other entries',async()=>{
+    const many=Array.from({length:999},(_,i)=>({id:String(i),text:`Passage ${i}`,comment:`Comment ${i}`}))
+    state.drafts.set('chat-a',api.format({type:'response-annotations',version:1,label:'999 annotations',annotations:many})+'\n\nExisting reply  ')
+    await save('Thousandth passage','Last comment')
+    expect(part().data.annotations).toHaveLength(1000)
+    await controller.open({value:part().value,editable:true})
+    expect(document.querySelectorAll('.afh-item')).toHaveLength(1000)
+    document.querySelector('[aria-label="Remove annotation 1000"]').click();await flush()
+    expect(part().data.annotations).toEqual(many)
+    expect(state.drafts.get('chat-a').endsWith('Existing reply  ')).toBe(true)
+    expect(state.submits).toBe(0)
+  })
+})

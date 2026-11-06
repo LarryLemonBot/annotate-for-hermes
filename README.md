@@ -28,7 +28,7 @@ The goal is a normal in-app install after the native API is available and the pl
 - Escape or the close control on an unfinished comment asks **Resume** or **Discard**.
 - Multiple selections and comments stay paired in one attachment.
 - The ordinary reply keeps its contents and whitespace.
-- Selected text and comments retain their full contents, including code indentation. Host limits (100 items, 64k per field, 512k encoded) surface recovery copy; drafts are not truncated on failure.
+- Selected text and comments retain their full contents, including code indentation. Host limits (1,000 items, 64k per field, 512k encoded) surface recovery copy; drafts are not truncated on failure.
 - Comments remain editable when a draft write fails. Unfinished comments stay in memory for their original connection, profile, and chat while the plugin remains loaded.
 - Owner guards: every read and write is scoped to the focused chat's owner (connection, profile, chat). When the host exposes `focusedSessionOwner`, an unresolved owner fails closed and nothing is staged. Older hosts fall back to `focusedSessionProfile` and the connection ID. If the focused chat changes while a draft read is in flight, the write is abandoned and the comment stays editable; an unfinished comment is restored only when its original owner is focused again.
 - A compact preview uses the current Hermes theme, short motion, and the operating system's reduced-motion preference.
@@ -65,7 +65,7 @@ hermes plugins validate .
 
 Current automated coverage in this repository:
 
-- **Unit (vitest):** 45 tests in three files covering selection popup polish, Escape Resume/Discard, duplicate handling, highlight cleanup, hover previews, dictation insertion and cancellation, draft preservation, host limit recovery copy, and the owner guards (owner switches, null owner, profile fallback, owner changes during asynchronous draft reads).
+- **Unit (vitest):** 46 tests in three files covering selection popup polish, Escape Resume/Discard, duplicate handling, highlight cleanup, hover previews, dictation insertion and cancellation, draft preservation, host limit recovery copy, and the owner guards (owner switches, null owner, profile fallback, owner changes during asynchronous draft reads).
 - **`hermes plugins validate`:** manifest, security scan, desktop SDK surface, and no core override on the plugin tip.
 - **`tests/native.mjs`:** isolated development renderer through Hermes' performance-test connection. Set `HERMES_SOURCE_DIR`, `HERMES_TEST_HOME`, `HERMES_TEST_CDP_PORT`, and `HERMES_TEST_DEV_PORT`. The script refuses a desktop whose plugin root differs from the disposable test home. It checks three distinct passages, a single native composer chip, exact comments, edit/remove, draft preservation, reduced motion, and zero automatic submissions. It uses synthetic assistant messages and does not call a language model.
 
@@ -83,7 +83,7 @@ Detailed native and real-build results are local artifacts, excluded from Git. R
 
 Hermes owns plugin installation and updates. This plugin does not update itself or rewrite application files. A native desktop update can replace a locally built extension until upstream includes the API; compatibility is detected at activation, and the plugin shows a notice instead of failing silently. Updating a stock Hermes install (including v0.23.0) does not add the API. The official Hermes updater has not been tested with this plugin in an isolated environment, so update survival through it is unverified.
 
-The native attachment contract allows up to 100 items, 64,000 characters per selection or comment, and 512,000 characters in the encoded attachment. Over-limit additions fail visibly and keep the comment available to edit. The model's context limit can be smaller.
+The native attachment contract allows up to 1,000 items, 64,000 characters per selection or comment, and 512,000 characters in the encoded attachment. Over-limit additions fail visibly and keep the comment available to edit. The model's context limit can be smaller.
 
 Draft attachments are self-contained and survive ordinary Hermes draft persistence. Unsaved popover comments and source highlights are temporary and do not survive an app reload. Source highlights and numbered markers are not reconstructed after reload; the saved attachment still contains every selected passage and comment. Hermes remains responsible for sending, queuing, and restoring failed sends.
 

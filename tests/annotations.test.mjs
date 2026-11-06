@@ -299,9 +299,9 @@ describe('selection popup polish',()=>{
 })
 
 describe('annotation limit recovery copy', () => {
-  it('names the 100-item batch recovery without truncating', () => {
-    const annotations=Array.from({length:101},(_,i)=>({id:String(i),text:'t'+i,comment:'c'+i}))
-    expect(limitRecoveryMessage(annotations)).toMatch(/100 annotations/i)
+  it('names the 1,000-item batch recovery without truncating', () => {
+    const annotations=Array.from({length:1001},(_,i)=>({id:String(i),text:'t'+i,comment:'c'+i}))
+    expect(limitRecoveryMessage(annotations)).toMatch(/1,000 annotations/i)
     expect(limitRecoveryMessage(annotations)).toMatch(/Remove one or send this batch/i)
   })
 
@@ -310,27 +310,27 @@ describe('annotation limit recovery copy', () => {
     expect(limitRecoveryMessage(annotations)).toMatch(/Shorten or split/i)
   })
 
-  it('keeps the draft unchanged when format rejects a 101st annotation', async () => {
+  it('keeps the draft unchanged when format rejects a 1,001st annotation', async () => {
     const {sdk,state,api}=createSdk()
     const prior='Existing reply  '
     state.drafts.set('chat-a', prior)
-    const many=Array.from({length:100},(_,i)=>({id:'id'+i,text:'passage '+i,comment:'c'+i}))
-    const token=api.format({type:'response-annotations',version:1,label:'100 annotations',annotations:many})
+    const many=Array.from({length:1000},(_,i)=>({id:'id'+i,text:'passage '+i,comment:'c'+i}))
+    const token=api.format({type:'response-annotations',version:1,label:'1000 annotations',annotations:many})
     state.drafts.set('chat-a', token+'\n\n'+prior)
     const before=state.drafts.get('chat-a')
-    document.body.innerHTML='<div data-slot="aui_assistant-message-root">Unique limit passage for one-oh-one</div>'
+    document.body.innerHTML='<div data-slot="aui_assistant-message-root">Unique limit passage for one-thousand-and-one</div>'
     const controller=new AnnotateController(sdk)
     controller.mount()
     const root=document.querySelector('[data-slot="aui_assistant-message-root"]')
     const range=document.createRange(); range.selectNodeContents(root)
-    await controller.edit({session:'chat-a', scope:JSON.stringify(['local','default','chat-a']), text:'Unique limit passage for one-oh-one', comment:'should not land', range, anchor:root.getBoundingClientRect()})
+    await controller.edit({session:'chat-a', scope:JSON.stringify(['local','default','chat-a']), text:'Unique limit passage for one-thousand-and-one', comment:'should not land', range, anchor:root.getBoundingClientRect()})
     document.querySelector('.afh-input').value='should not land'
     document.querySelector('.afh-input').dispatchEvent(new Event('input'))
     document.querySelector('.afh-save').click()
     await new Promise(r=>setTimeout(r,0))
     await new Promise(r=>setTimeout(r,0))
     expect(state.drafts.get('chat-a')).toBe(before)
-    expect(document.querySelector('.afh-error')?.textContent||'').toMatch(/100 annotations|Remove one or send|too large|Shorten or split/i)
+    expect(document.querySelector('.afh-error')?.textContent||'').toMatch(/1,000 annotations|Remove one or send|too large|Shorten or split/i)
     expect(document.querySelector('.afh-input')?.value).toBe('should not land')
     controller.dispose()
   })

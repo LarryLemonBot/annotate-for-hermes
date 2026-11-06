@@ -58,13 +58,13 @@ export function replaceAttachment(draft, previous, annotations, api) {
   return token + (draft ? `\n\n${draft}` : '')
 }
 
-/** Host response-annotations caps (composer SDK): ≤100 items, ≤64k per text/comment, ≤512k wire JSON. */
-const MAX_ANNOTATIONS = 100
+/** Host response-annotations caps (composer SDK): ≤1,000 items, ≤64k per text/comment, ≤512k wire JSON. */
+const MAX_ANNOTATIONS = 1000
 const MAX_FIELD_CHARS = 64_000
 
 export function limitRecoveryMessage(annotations) {
   if (annotations.length > MAX_ANNOTATIONS) {
-    return 'This draft already has 100 annotations. Remove one or send this batch before adding more.'
+    return 'This draft already has 1,000 annotations. Remove one or send this batch before adding more.'
   }
   if (annotations.some(item => item.text.length > MAX_FIELD_CHARS || item.comment.length > MAX_FIELD_CHARS)) {
     return 'That selection or comment is too long. Shorten or split the selected text or comments, then try again.'
