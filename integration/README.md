@@ -1,5 +1,9 @@
 # Proposed native response-annotations API
 
+For the hackathon preview, use **Hermes v0.23.0**, commit `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`, with `response-annotations-v0.23.0.patch`. This complete 15-file patch includes compact-preview events and optional dictation. Apply it in a separate checkout with `git apply --check`, then `git apply`, and follow Hermes desktop build instructions. Use a disposable Hermes home for testing.
+
+The older base below is retained for the original upstream proposal.
+
 This developer patch adds a generic attachment reference and a public selection capture method to Hermes Desktop. It is not run by the plugin installer and is not a substitute for upstream acceptance.
 
 Tested base: `5057eaa3a4d0cbef0e30078418a5115faa62889e`.
@@ -23,9 +27,9 @@ Editable chip events target the current draft. Saved-message chips open a read-o
 
 The patch carries Hermes source context under `HERMES-LICENSE`.
 
-## 0.23.0 local review candidate
+## 0.23.0 hackathon preview
 
-`response-annotations-v0.23.0.patch` is the complete annotation-only patch against stable commit `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`. Apply it instead of the older patch on that base. It adds optional `interaction: 'hover' | 'focus' | 'leave'` intent to `onOpen` events; plugins using click-only events remain compatible. These local changes have not been published to the upstream PR.
+`response-annotations-v0.23.0.patch` is the complete annotation-only patch against stable commit `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`. Apply it instead of the older patch on that base. It adds optional `interaction: 'hover' | 'focus' | 'leave'` intent to `onOpen` events; plugins using click-only events remain compatible. This patch is newer than the current core PR implementation; inclusion here does not imply upstream acceptance.
 
 
 ### Optional comment dictation

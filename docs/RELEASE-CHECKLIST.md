@@ -1,6 +1,6 @@
 # Maintainer release checklist
 
-This checklist is for a future production-ready release. No production-ready release exists yet; the existing draft catalog pin remains blocked. Do not publish while any **Blocking** item is open.
+This checklist is for a future production-ready release. No production-ready release exists yet; the existing draft catalog pin remains blocked. Do not label the plugin production-ready or request catalog admission while any **Blocking** item is open. A clearly labeled hackathon development preview can be published separately.
 
 ## Blocking (upstream)
 
@@ -11,7 +11,7 @@ This checklist is for a future production-ready release. No production-ready rel
 
 ## Plugin checks (on the exact commit to release)
 
-- [ ] `npm --prefix tests ci && npm --prefix tests test`: all tests pass (33 at the time of writing).
+- [ ] `npm --prefix tests ci && npm --prefix tests test`: all tests pass (46 in the hackathon preview).
 - [ ] `hermes plugins validate .` passes: manifest, security scan, desktop SDK surface, no core override.
 - [ ] `tests/native.mjs` passes against a disposable Hermes home.
 - [ ] Fresh-profile fixture: install with `--ref <full sha>`, then use the visible Desktop switch to enable, disable, and re-enable the plugin. Confirm add, edit, and remove keep ordinary text and whitespace exact, and that a saved draft survives an app restart and a backend restart with a successful `session.resume`.
