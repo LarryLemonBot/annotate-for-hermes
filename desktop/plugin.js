@@ -7,6 +7,8 @@ const symbols = {
   edit: '<path d="m15 5 4 4M4 20l5-1L20 8a2.8 2.8 0 0 0-4-4L5 15Z"/>',
   trash: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>',
   arrow: '<path d="M12 19V5m-6 6 6-6 6 6"/>',
+  mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>'
 }
 
@@ -78,8 +80,8 @@ function mapFormatLimitError(error, annotations) {
 
 
 const styles = `
-/* Popover fill is opaque light-dark() so content behind cannot show through; follows color-scheme (light/dark/system). Host chrome glass tokens are not used for fill. */
-[data-afh]{--afh-bg:light-dark(#ffffff,#2c2c2e);--afh-fg:var(--ui-text-primary,light-dark(#18181b,#f4f4f5));--afh-muted:var(--ui-text-secondary,light-dark(#5f5f68,#a9a9b1));--afh-line:var(--ui-stroke-secondary,light-dark(#0000001f,#ffffff20));--afh-hover:var(--chrome-action-hover,light-dark(#0000000a,#ffffff0c));--afh-accent:var(--ui-accent,light-dark(#2563eb,#6395f6));--afh-danger:var(--ui-text-danger,light-dark(#b42318,#ed8d88));box-sizing:border-box;color:var(--afh-fg);font:13px/1.5 var(--font-sans,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);z-index:var(--z-modal-popover,1000)}
+/* Use the selected Hermes elevated surface, not its translucent glass treatment. */
+[data-afh]{--afh-bg:var(--ui-bg-elevated,light-dark(#ffffff,#2c2c2e));--afh-fg:var(--ui-text-primary,light-dark(#18181b,#f4f4f5));--afh-muted:var(--ui-text-secondary,light-dark(#5f5f68,#a9a9b1));--afh-line:var(--ui-stroke-secondary,light-dark(#0000001f,#ffffff20));--afh-hover:var(--chrome-action-hover,light-dark(#0000000a,#ffffff0c));--afh-accent:var(--ui-accent,light-dark(#2563eb,#6395f6));--afh-danger:var(--ui-text-danger,light-dark(#b42318,#ed8d88));box-sizing:border-box;color:var(--afh-fg);font:13px/1.5 var(--font-sans,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);z-index:var(--z-modal-popover,1000)}
 [data-afh] *,[data-afh] *::before,[data-afh] *::after{box-sizing:border-box}
 [data-afh] button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;flex-shrink:0}
 [data-afh] button:disabled{opacity:.5;cursor:wait}
@@ -128,6 +130,8 @@ const styles = `
 ::highlight(annotate-for-hermes){background:color-mix(in srgb,var(--ui-accent,#2563eb) 9%,transparent);text-decoration:underline dashed;text-decoration-thickness:1px;text-underline-offset:2px;text-decoration-color:color-mix(in srgb,var(--ui-accent,#2563eb) 40%,transparent)}
 .afh-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip-path:inset(50%);white-space:nowrap!important;border:0!important}
 [data-afh="editor"]:has(.afh-comment-bar){width:360px;padding:8px;border-radius:28px;overflow:visible}
+.afh-dictate[aria-pressed="true"]{color:var(--afh-accent);background:var(--afh-hover)}
+.afh-dictate .afh-icon{width:18px;height:18px}
 .afh-comment-bar{display:flex;align-items:flex-end;gap:8px}
 [data-afh] .afh-comment-bar .afh-input{flex:1;min-width:0;min-height:24px;max-height:120px;padding:6px 9px;border:0;border-radius:18px;box-shadow:none;background:transparent}
 [data-afh="editor"]:focus-within{border-color:var(--ui-stroke-primary,var(--afh-line));outline:none}
@@ -288,6 +292,7 @@ export class AnnotateController {
     clearTimeout(this.previewTimer)
     this.previewValue = null
     this.preview = false
+    this.panel?.cancelDictation?.()
     this.panel?.remove()
     this.toolbar?.remove()
     this.panel = this.toolbar = null
@@ -336,7 +341,7 @@ export class AnnotateController {
     const save = button(existing ? 'Save annotation' : 'Add to reply', 'arrow', () => commit(), 'afh-save')
     save.title = existing ? 'Save annotation' : 'Add to reply'
     const commit = async () => {
-      if (this.busy || this.disposed) return
+      if (this.busy || this.disposed || panel.dictating) return
       this.busy = true
       save.disabled = true
       cancel.disabled = true
@@ -375,10 +380,12 @@ export class AnnotateController {
     // The visible editor is a single comment bar, anchored to the selected passage.
     for (const element of [header, selectedLabel, quote, label, hint]) element.classList.add('afh-sr-only')
     const bar = node('div', 'afh-comment-bar')
-    bar.append(input, save)
+    const mic = this.dictationControl(panel, input, save, error, entry)
+    bar.append(input, mic, save)
     this.panel.append(header, selectedLabel, quote, label, bar, footer, error)
     panel.escape = () => {
       if (this.busy) return
+      if (panel.dictating) { panel.cancelDictation(); return }
       if (!input.value.trim()) { this.pending.delete(entry.scope); this.close(true); return }
       if (panel.querySelector('.afh-confirm')) { resume(); return }
       footer.hidden = true
@@ -440,6 +447,66 @@ export class AnnotateController {
     resume.focus()
   }
 
+  dictationControl(panel, input, save, error, entry) {
+    let take = null
+    let generation = 0
+    let phase = 'idle'
+    const available = this.host.composer.dictation?.version === 1
+    const mic = button('Dictate comment', 'mic', () => {
+      if (phase === 'recording') { take?.stop(); return }
+      if (phase !== 'idle' || this.busy || input.readOnly) return
+      const current = ++generation
+      const before = input.value
+      const start = input.selectionStart
+      const end = input.selectionEnd
+      const live = () => current === generation && this.panel === panel && entry.scope === this.scope() && !this.disposed
+      let finished = false
+      error.textContent = ''
+      const handle = this.host.composer.dictation.start(entry.session, {
+        onState: status => {
+          if (!live()) return
+          update(status)
+          if (status === 'idle') { finished = true; take = null; input.focus() }
+        },
+        onTranscript: text => {
+          if (!live()) return
+          const prefix = before.slice(0, start)
+          const suffix = before.slice(end)
+          const spoken = (/\S$/.test(prefix) ? ' ' : '') + text + (/^[\p{L}\p{N}]/u.test(suffix) ? ' ' : '')
+          const next = prefix + spoken + suffix
+          if (next.length > MAX_FIELD_CHARS) { error.textContent = 'This comment is too long. Shorten it and dictate again.'; return }
+          input.value = next
+          input.setSelectionRange(prefix.length + spoken.length, prefix.length + spoken.length)
+          input.dispatchEvent(new Event('input'))
+        }
+      })
+      if (!handle) { update('idle'); error.textContent = 'Dictation is unavailable or already in use. Check Hermes voice settings and try again.' }
+      else if (!finished) take = handle
+    }, 'afh-icon-button afh-dictate')
+    const update = status => {
+      phase = status
+      panel.dictating = status !== 'idle'
+      input.readOnly = panel.dictating
+      save.disabled = panel.dictating
+      mic.disabled = !available || status === 'starting' || status === 'transcribing'
+      const label = { idle: 'Dictate comment', starting: 'Starting microphone…', recording: 'Stop dictation', transcribing: 'Transcribing comment…' }[status]
+      mic.setAttribute('aria-label', label)
+      mic.setAttribute('aria-pressed', String(panel.dictating))
+      mic.title = label
+      mic.replaceChildren(icon(status === 'recording' ? 'stop' : 'mic'))
+      this.status.textContent = status === 'idle' ? '' : label
+    }
+    panel.cancelDictation = () => {
+      generation++
+      take?.cancel()
+      take = null
+      update('idle')
+    }
+    update('idle')
+    if (!available) mic.title = 'Dictation needs the Hermes dictation API extension.'
+    return mic
+  }
+
   // Same passage = same live DOM range (identical start and end points) on an annotation already in this draft.
   samePassage(entry, annotations) {
     if (!entry.range) return false
@@ -454,6 +521,7 @@ export class AnnotateController {
 
   async save(entry) {
     if (entry.scope == null || this.scope() == null || entry.scope !== this.scope() || this.disposed) throw new Error('Return to the original chat to add this annotation.')
+    const rangeText = entry.range?.toString()
     const draft = await this.host.composer.getDraft(entry.session)
     if (draft === null) throw new Error('The draft is unavailable. Your comment is kept here; try again.')
     if (entry.scope !== this.scope() || this.disposed) throw new Error('The chat changed. Your comment is still here.')
@@ -482,7 +550,7 @@ export class AnnotateController {
       throw new Error(mapFormatLimitError(error, annotations) || error.message)
     }
     await this.writeDraft(entry.session, entry.scope, draft, next)
-    if (entry.range) this.ranges.set(id, { scope: entry.scope, range: entry.range, text: entry.text, session: entry.session })
+    if (entry.range) this.ranges.set(id, { scope: entry.scope, range: entry.range, rangeText, text: entry.text, session: entry.session })
     this.syncMarkerNumbers(annotations)
     this.refreshHighlights()
   }
@@ -664,7 +732,7 @@ export class AnnotateController {
 
   refreshHighlights() {
     for (const [id, entry] of this.ranges) {
-      if (!entry.range.commonAncestorContainer.isConnected || entry.range.collapsed || entry.range.toString() !== entry.text) this.ranges.delete(id)
+      if (!entry.range.commonAncestorContainer.isConnected || entry.range.collapsed || entry.range.toString() !== (entry.rangeText ?? entry.text)) this.ranges.delete(id)
     }
     this.observeRanges()
     this.positionMarkers()

@@ -26,3 +26,10 @@ The patch carries Hermes source context under `HERMES-LICENSE`.
 ## 0.23.0 local review candidate
 
 `response-annotations-v0.23.0.patch` is the complete annotation-only patch against stable commit `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`. Apply it instead of the older patch on that base. It adds optional `interaction: 'hover' | 'focus' | 'leave'` intent to `onOpen` events; plugins using click-only events remain compatible. These local changes have not been published to the upstream PR.
+
+
+### Optional comment dictation
+
+The 0.23.0 review patch also proposes `host.composer.dictation.version === 1` and `start(sessionId, { onTranscript, onState })`. It returns `{ stop(), cancel() }`, or `null` when the addressed composer cannot claim the request. State is `starting`, `recording`, `transcribing`, or `idle`. Start only after an explicit user action; call `cancel()` when the recipient field closes. Stop transcribes using the addressed composer's existing STT path; cancel discards the take and suppresses late results. The host cancels on composer teardown or session/scope change. The recipient receives text without changing or submitting the chat draft. The microphone permissions, recording limits, provider configuration, and STT routing remain owned by Hermes.
+
+The plugin feature-detects this optional capability and keeps typed annotations available without it. Both API additions remain local review proposals; plugin catalog approval alone does not make them stable host APIs.

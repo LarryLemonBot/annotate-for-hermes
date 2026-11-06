@@ -22,7 +22,8 @@ The goal is a normal in-app install after the native API is available and the pl
 - Editor primary action: **Add to reply** for a new annotation; **Save** when editing an existing one. A duplicate selection shows **Already added**.
 - A compact rounded bar contains **Add an optional comment…** and an arrow button. The selected quote and keyboard instructions remain available to assistive technology.
 - Numbered passage markers track live selections. Hover or focus an attachment or marker to preview; moving into the preview keeps its edit/delete controls available. Passive previews do not move keyboard focus.
-- The interface follows Hermes typography and theme colors. There is no separate microphone control: the public plugin SDK does not expose Hermes dictation to an arbitrary comment field.
+- The interface follows Hermes typography, selected elevated-surface color, and accent.
+- **Dictate comment** records through Hermes using its configured speech-to-text provider. Press the microphone again to stop and transcribe; review the text before staging it. Escape cancels the recording while keeping typed text. Closing the editor or switching chats cancels capture. The microphone is disabled on builds without the proposed dictation API. Audio is handled by Hermes and its configured provider; only the resulting text enters the annotation attachment.
 - Enter stages a comment; Shift+Enter inserts a line break. Staging never sends a message.
 - Escape or the close control on an unfinished comment asks **Resume** or **Discard**.
 - Multiple selections and comments stay paired in one attachment.
@@ -37,7 +38,7 @@ The compact editor and hover behavior are a new local review candidate; older sc
 
 ## Developer setup
 
-The tested Hermes source base is `5057eaa3a4d0cbef0e30078418a5115faa62889e`. Use a separate checkout and a disposable Hermes home. Do not apply the extension over unrelated work.
+The current local review base is Hermes v0.23.0, commit `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`, using `integration/response-annotations-v0.23.0.patch`. The older patch targets `5057eaa3a4d0cbef0e30078418a5115faa62889e`. Use a separate checkout and a disposable Hermes home. Do not apply the extension over unrelated work.
 
 1. Build a compatible Hermes desktop with the native extension in `integration/`.
 2. Install this repository using Hermes' plugin installer, pinning an exact commit:
@@ -64,7 +65,7 @@ hermes plugins validate .
 
 Current automated coverage in this repository:
 
-- **Unit (vitest):** 33 tests in two files covering selection popup polish, Escape Resume/Discard, duplicate handling, highlight cleanup, draft preservation, host limit recovery copy, and the owner guards (owner switches, null owner, profile fallback, owner changes during asynchronous draft reads).
+- **Unit (vitest):** 45 tests in three files covering selection popup polish, Escape Resume/Discard, duplicate handling, highlight cleanup, hover previews, dictation insertion and cancellation, draft preservation, host limit recovery copy, and the owner guards (owner switches, null owner, profile fallback, owner changes during asynchronous draft reads).
 - **`hermes plugins validate`:** manifest, security scan, desktop SDK surface, and no core override on the plugin tip.
 - **`tests/native.mjs`:** isolated development renderer through Hermes' performance-test connection. Set `HERMES_SOURCE_DIR`, `HERMES_TEST_HOME`, `HERMES_TEST_CDP_PORT`, and `HERMES_TEST_DEV_PORT`. The script refuses a desktop whose plugin root differs from the disposable test home. It checks three distinct passages, a single native composer chip, exact comments, edit/remove, draft preservation, reduced motion, and zero automatic submissions. It uses synthetic assistant messages and does not call a language model.
 

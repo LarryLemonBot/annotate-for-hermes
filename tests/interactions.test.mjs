@@ -90,3 +90,55 @@ describe('compact annotation interactions',()=>{
     controller.dispose();expect(document.querySelector('[data-afh="marker"]')).toBeNull()
   })
 })
+
+describe('dictation comments',()=>{
+  function installVoice(){
+    let recipient
+    const handle={stop:vi.fn(),cancel:vi.fn()}
+    sdk.composer.dictation={version:1,start:vi.fn((session,callbacks)=>{recipient=callbacks;callbacks.onState('starting');return handle})}
+    controller.edit(captured('Selected passage'))
+    return {handle,get recipient(){return recipient},mic:document.querySelector('.afh-dictate'),input:document.querySelector('textarea')}
+  }
+  it('dictates at the comment caret without changing or submitting the chat draft',async()=>{
+    const voice=installVoice();voice.input.value='Please simplify.';voice.input.setSelectionRange(7,15)
+    voice.mic.click();expect(voice.input.readOnly).toBe(true)
+    voice.recipient.onState('recording');voice.mic.click();expect(voice.handle.stop).toHaveBeenCalledOnce()
+    voice.recipient.onState('transcribing');expect(voice.mic.disabled).toBe(true)
+    voice.recipient.onTranscript('shorten this');voice.recipient.onState('idle')
+    expect(voice.input.value).toBe('Please shorten this.')
+    expect(voice.input.readOnly).toBe(false)
+    expect(state.writes).toBe(0);expect(state.submits).toBe(0)
+    document.querySelector('[aria-label="Add to reply"]').click();await flush()
+    expect(part().data.annotations[0].comment).toBe('Please shorten this.')
+  })
+  it('cancels capture on close and ignores late text after a different editor opens',()=>{
+    const voice=installVoice();voice.mic.click();controller.close(false)
+    expect(voice.handle.cancel).toHaveBeenCalledOnce()
+    controller.edit(captured('Other selection'))
+    voice.recipient.onTranscript('Late private text');voice.recipient.onState('idle')
+    expect(document.querySelector('textarea').value).toBe('')
+    expect(state.writes).toBe(0)
+  })
+  it('uses Escape to cancel only the recording, preserving the typed comment',()=>{
+    const voice=installVoice();voice.input.value='Keep this';voice.input.dispatchEvent(new Event('input'));voice.mic.click()
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))
+    expect(voice.handle.cancel).toHaveBeenCalledOnce()
+    expect(voice.input.isConnected).toBe(true);expect(voice.input.value).toBe('Keep this')
+    voice.recipient.onTranscript('Cancelled take');expect(voice.input.value).toBe('Keep this')
+  })
+  it('fails visibly and leaves typing available when the host cannot claim dictation',()=>{
+    sdk.composer.dictation={version:1,start:()=>null};controller.edit(captured('Selection'))
+    document.querySelector('.afh-dictate').click()
+    expect(document.querySelector('[role="alert"]').textContent).toContain('unavailable')
+    expect(document.querySelector('textarea').readOnly).toBe(false)
+  })
+  it('retains a paragraph marker when rendered selection includes a trailing newline',async()=>{
+    const p=document.createElement('p');p.textContent='Paragraph';document.body.append(p)
+    const range=document.createRange();range.selectNodeContents(p)
+    range.getClientRects=()=>[{left:30,right:180,top:100,bottom:120}]
+    await save({...captured('Paragraph\n'),range})
+    expect(controller.markers.size).toBe(1)
+    p.firstChild.textContent='Changed paragraph';controller.refreshHighlights()
+    expect(controller.markers.size).toBe(0)
+  })
+})
