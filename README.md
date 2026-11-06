@@ -4,7 +4,7 @@
 
 Give feedback on several parts of an assistant response in one message.
 
-Select a passage, choose **Add to chat**, and add a comment. Repeat across earlier responses. Your selections collect in one **N annotations** attachment inside the main composer. Open the attachment to review, edit, or remove individual comments, then send it with your ordinary reply.
+Select a passage, choose **Add to chat**, and optionally add a comment. Repeat across earlier responses. Your selections collect in one **N annotations** attachment inside the main composer. Hover or focus the attachment to preview its selected text and comments; click it to review, edit, or remove individual comments, then send it with your ordinary reply.
 
 ## Availability
 
@@ -20,7 +20,9 @@ The goal is a normal in-app install after the native API is available and the pl
 
 - Selection toolbar action: **Add to chat**.
 - Editor primary action: **Add to reply** for a new annotation; **Save** when editing an existing one. A duplicate selection shows **Already added**.
-- The editor labels the quote as **Selected text** (read-only) and the field as **Comment**.
+- A compact rounded bar contains **Add an optional comment…** and an arrow button. The selected quote and keyboard instructions remain available to assistive technology.
+- Numbered passage markers track live selections. Hover or focus an attachment or marker to preview; moving into the preview keeps its edit/delete controls available. Passive previews do not move keyboard focus.
+- The interface follows Hermes typography and theme colors. There is no separate microphone control: the public plugin SDK does not expose Hermes dictation to an arbitrary comment field.
 - Enter stages a comment; Shift+Enter inserts a line break. Staging never sends a message.
 - Escape or the close control on an unfinished comment asks **Resume** or **Discard**.
 - Multiple selections and comments stay paired in one attachment.
@@ -30,6 +32,8 @@ The goal is a normal in-app install after the native API is available and the pl
 - Owner guards: every read and write is scoped to the focused chat's owner (connection, profile, chat). When the host exposes `focusedSessionOwner`, an unresolved owner fails closed and nothing is staged. Older hosts fall back to `focusedSessionProfile` and the connection ID. If the focused chat changes while a draft read is in flight, the write is abandoned and the comment stays editable; an unfinished comment is restored only when its original owner is focused again.
 - A compact preview uses the current Hermes theme, short motion, and the operating system's reduced-motion preference.
 - Normal copy commands, model selection, tools, and other plugins are not changed.
+
+The compact editor and hover behavior are a new local review candidate; older screenshots and fixture evidence below describe the previous visual design.
 
 ## Developer setup
 
@@ -80,7 +84,7 @@ Hermes owns plugin installation and updates. This plugin does not update itself 
 
 The native attachment contract allows up to 100 items, 64,000 characters per selection or comment, and 512,000 characters in the encoded attachment. Over-limit additions fail visibly and keep the comment available to edit. The model's context limit can be smaller.
 
-Draft attachments are self-contained and survive ordinary Hermes draft persistence. Unsaved popover comments and source highlights are temporary and do not survive an app reload. Source highlights are not reconstructed from saved messages. Hermes remains responsible for sending, queuing, and restoring failed sends.
+Draft attachments are self-contained and survive ordinary Hermes draft persistence. Unsaved popover comments and source highlights are temporary and do not survive an app reload. Source highlights and numbered markers are not reconstructed after reload; the saved attachment still contains every selected passage and comment. Hermes remains responsible for sending, queuing, and restoring failed sends.
 
 ## Releasing
 

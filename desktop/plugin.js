@@ -6,6 +6,7 @@ const symbols = {
   note: '<path d="M8 10h8M8 14h5"/><path d="M20 11.5v4A3.5 3.5 0 0 1 16.5 19H9l-4 3v-4a3.5 3.5 0 0 1-2-3.2V6.5A3.5 3.5 0 0 1 6.5 3h10A3.5 3.5 0 0 1 20 6.5Z"/>',
   edit: '<path d="m15 5 4 4M4 20l5-1L20 8a2.8 2.8 0 0 0-4-4L5 15Z"/>',
   trash: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>',
+  arrow: '<path d="M12 19V5m-6 6 6-6 6 6"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>'
 }
 
@@ -78,7 +79,7 @@ function mapFormatLimitError(error, annotations) {
 
 const styles = `
 /* Popover fill is opaque light-dark() so content behind cannot show through; follows color-scheme (light/dark/system). Host chrome glass tokens are not used for fill. */
-[data-afh]{--afh-bg:light-dark(#ffffff,#2c2c2e);--afh-fg:var(--ui-text-primary,light-dark(#18181b,#f4f4f5));--afh-muted:var(--ui-text-secondary,light-dark(#5f5f68,#a9a9b1));--afh-line:var(--ui-stroke-secondary,light-dark(#0000001f,#ffffff20));--afh-hover:var(--chrome-action-hover,light-dark(#0000000a,#ffffff0c));--afh-accent:var(--ui-accent,light-dark(#2563eb,#6395f6));--afh-danger:var(--ui-text-danger,light-dark(#b42318,#ed8d88));box-sizing:border-box;color:var(--afh-fg);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;z-index:var(--z-modal-popover,1000)}
+[data-afh]{--afh-bg:light-dark(#ffffff,#2c2c2e);--afh-fg:var(--ui-text-primary,light-dark(#18181b,#f4f4f5));--afh-muted:var(--ui-text-secondary,light-dark(#5f5f68,#a9a9b1));--afh-line:var(--ui-stroke-secondary,light-dark(#0000001f,#ffffff20));--afh-hover:var(--chrome-action-hover,light-dark(#0000000a,#ffffff0c));--afh-accent:var(--ui-accent,light-dark(#2563eb,#6395f6));--afh-danger:var(--ui-text-danger,light-dark(#b42318,#ed8d88));box-sizing:border-box;color:var(--afh-fg);font:13px/1.5 var(--font-sans,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);z-index:var(--z-modal-popover,1000)}
 [data-afh] *,[data-afh] *::before,[data-afh] *::after{box-sizing:border-box}
 [data-afh] button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;flex-shrink:0}
 [data-afh] button:disabled{opacity:.5;cursor:wait}
@@ -125,6 +126,24 @@ const styles = `
 .afh-comment{margin:10px 0 0;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--afh-muted)}
 .afh-status{position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 ::highlight(annotate-for-hermes){background:color-mix(in srgb,var(--ui-accent,#2563eb) 9%,transparent);text-decoration:underline dashed;text-decoration-thickness:1px;text-underline-offset:2px;text-decoration-color:color-mix(in srgb,var(--ui-accent,#2563eb) 40%,transparent)}
+.afh-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip-path:inset(50%);white-space:nowrap!important;border:0!important}
+[data-afh="editor"]:has(.afh-comment-bar){width:360px;padding:8px;border-radius:28px;overflow:visible}
+.afh-comment-bar{display:flex;align-items:flex-end;gap:8px}
+[data-afh] .afh-comment-bar .afh-input{flex:1;min-width:0;min-height:24px;max-height:120px;padding:6px 9px;border:0;border-radius:18px;box-shadow:none;background:transparent}
+[data-afh="editor"]:focus-within{border-color:var(--ui-stroke-primary,var(--afh-line));outline:none}
+[data-afh] .afh-comment-bar .afh-save{width:32px;height:32px;min-width:32px;padding:0;border-radius:50%;background:var(--afh-fg);color:var(--afh-bg)}
+[data-afh] .afh-comment-bar .afh-save[data-duplicate]{width:auto;padding:0 10px;background:transparent;color:var(--afh-muted)}
+[data-afh="editor"]:has(.afh-comment-bar) .afh-footer{margin:0;gap:0}
+[data-afh="editor"]:has(.afh-comment-bar) .afh-error:not(:empty){padding:0 8px 6px}
+[data-afh="review"]{width:390px;padding:14px;border-radius:12px}
+.afh-item{padding:12px 0;gap:8px}
+.afh-number{padding-top:3px}
+.afh-item-head{margin-bottom:0}
+.afh-item .afh-comment-label{margin:10px 0 2px}
+.afh-item .afh-comment{margin:0;color:var(--afh-fg)}
+[data-afh="marker"]{position:fixed;display:flex;align-items:center;justify-content:center;width:24px;height:24px;border:1px solid var(--afh-bg);border-radius:12px 12px 12px 3px;background:var(--afh-accent);color:var(--ui-text-on-accent,light-dark(#fff,#101014));font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 1px 3px light-dark(#00000018,#00000050)}
+[data-afh="marker"][hidden]{display:none}
+[data-afh="marker"]:focus-visible{outline:2px solid var(--afh-accent);outline-offset:2px}
 @keyframes afh-appear{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){[data-afh],[data-afh] *{animation:none!important;transition:none!important}}
 `
@@ -136,6 +155,8 @@ export class AnnotateController {
     this.disposers = []
     this.ranges = new Map()
     this.pending = new Map()
+    this.markers = new Map()
+    this.openGeneration = 0
     this.busy = false
     this.disposed = false
   }
@@ -192,11 +213,19 @@ export class AnnotateController {
     listen(document, 'pointerdown', event => {
       if (this.panel?.dataset.afh === 'review' && !event.target.closest?.(ROOT)) this.close(false)
     })
-    listen(window, 'resize', () => this.position())
-    listen(document, 'scroll', () => { this.toolbar?.remove(); this.toolbar = null }, true)
+    listen(window, 'resize', () => { this.position(); this.positionMarkers() })
+    listen(document, 'scroll', event => {
+      if (event.target.closest?.(ROOT)) return
+      this.toolbar?.remove(); this.toolbar = null
+      this.positionMarkers()
+      if (this.panel?.dataset.afh === 'review') this.close(false)
+    }, true)
     // Watch only the passages that hold a tracked highlight (the parent of each range's element,
     // so a replaced paragraph is noticed), never the whole document, and only while one exists.
-    this.observer = new MutationObserver(() => this.refreshHighlights())
+    this.observer = new MutationObserver(records => {
+      const own = node => (node.nodeType === 1 ? node : node.parentElement)?.closest?.(ROOT)
+      if (records.some(record => !own(record.target) && (record.type !== 'childList' || [...record.addedNodes, ...record.removedNodes].some(node => !own(node))))) this.refreshHighlights()
+    })
     this.disposers.push(() => this.observer.disconnect())
     for (const atom of [this.host.state.focusedStoredSessionId, this.host.state.focusedSessionId, this.host.state.focusedSessionOwner, this.host.state.focusedSessionProfile, this.host.state.connectionId, this.host.state.profile]) {
       if (atom?.listen) this.disposers.push(atom.listen(() => {
@@ -245,7 +274,8 @@ export class AnnotateController {
     const box = element.getBoundingClientRect()
     const below = anchor.bottom + 10
     const above = anchor.top - box.height - 10
-    const top = below + box.height <= window.innerHeight - 12 || above < 12 ? below : above
+    const preferAbove = element.dataset.afh === 'editor' || element.dataset.afh === 'review'
+    const top = preferAbove && above >= 12 ? above : below + box.height <= window.innerHeight - 12 || above < 12 ? below : above
     element.style.left = `${Math.max(12, Math.min(anchor.left, window.innerWidth - box.width - 12))}px`
     element.style.top = `${Math.max(12, Math.min(top, window.innerHeight - box.height - 12))}px`
   }
@@ -254,6 +284,10 @@ export class AnnotateController {
 
   close(focus) {
     const session = this.owner
+    this.openGeneration++
+    clearTimeout(this.previewTimer)
+    this.previewValue = null
+    this.preview = false
     this.panel?.remove()
     this.toolbar?.remove()
     this.panel = this.toolbar = null
@@ -279,6 +313,7 @@ export class AnnotateController {
     const panel = this.panel
     const header = node('div', 'afh-header')
     const cancel = button('Cancel annotation', 'close', () => { if (!this.busy) panel.escape?.() })
+    cancel.tabIndex = -1
     header.append(node('span', 'afh-title', existing ? 'Edit annotation' : 'Add annotation'), cancel)
     const selectedLabel = node('div', 'afh-selected-label', 'Selected text')
     selectedLabel.id = 'afh-selected-label'
@@ -288,17 +323,18 @@ export class AnnotateController {
     const input = node('textarea', 'afh-input')
     input.id = 'afh-comment'
     input.setAttribute('aria-label', 'Comment')
-    input.placeholder = 'Add a comment…'
+    input.placeholder = 'Add an optional comment…'
+    input.rows = 1
     input.maxLength = 64000
     input.value = entry.comment
     label.htmlFor = input.id
-    const resize = () => { input.style.height = 'auto'; input.style.height = `${Math.min(120, Math.max(52, input.scrollHeight))}px` }
+    const resize = () => { input.style.height = 'auto'; input.style.height = `${Math.min(120, Math.max(24, input.scrollHeight))}px` }
     input.addEventListener('input', () => { entry.comment = input.value; resize(); this.position() })
     const footer = node('div', 'afh-footer')
     const error = node('div', 'afh-error')
     error.setAttribute('role', 'alert')
-    const save = button(existing ? 'Save annotation' : 'Add to reply', null, () => commit(), 'afh-save')
-    save.textContent = existing ? 'Save' : 'Add to reply'
+    const save = button(existing ? 'Save annotation' : 'Add to reply', 'arrow', () => commit(), 'afh-save')
+    save.title = existing ? 'Save annotation' : 'Add to reply'
     const commit = async () => {
       if (this.busy || this.disposed) return
       this.busy = true
@@ -335,12 +371,18 @@ export class AnnotateController {
     hint.id = 'afh-editor-hint'
     input.setAttribute('aria-describedby', hint.id)
     footer.append(hint, save)
-    this.panel.append(header, selectedLabel, quote, label, input, footer, error)
+    // Keep the selection and shortcut guidance available to assistive technology.
+    // The visible editor is a single comment bar, anchored to the selected passage.
+    for (const element of [header, selectedLabel, quote, label, hint]) element.classList.add('afh-sr-only')
+    const bar = node('div', 'afh-comment-bar')
+    bar.append(input, save)
+    this.panel.append(header, selectedLabel, quote, label, bar, footer, error)
     panel.escape = () => {
       if (this.busy) return
       if (!input.value.trim()) { this.pending.delete(entry.scope); this.close(true); return }
       if (panel.querySelector('.afh-confirm')) { resume(); return }
       footer.hidden = true
+      save.hidden = true
       const row = node('div', 'afh-confirm')
       row.setAttribute('role', 'group')
       row.setAttribute('aria-label', 'Unsaved comment')
@@ -359,6 +401,7 @@ export class AnnotateController {
     const resume = () => {
       panel.querySelector('.afh-confirm')?.remove()
       footer.hidden = false
+      save.hidden = false
       input.readOnly = false
       this.position()
       input.focus()
@@ -439,7 +482,8 @@ export class AnnotateController {
       throw new Error(mapFormatLimitError(error, annotations) || error.message)
     }
     await this.writeDraft(entry.session, entry.scope, draft, next)
-    if (entry.range) this.ranges.set(id, { scope: entry.scope, range: entry.range, text: entry.text })
+    if (entry.range) this.ranges.set(id, { scope: entry.scope, range: entry.range, text: entry.text, session: entry.session })
+    this.syncMarkerNumbers(annotations)
     this.refreshHighlights()
   }
 
@@ -451,14 +495,23 @@ export class AnnotateController {
   }
 
   async open(request) {
-    if (this.busy) return
+    if (request.interaction === 'leave') {
+      if (this.previewValue === request.value) this.schedulePreviewClose()
+      return
+    }
+    const passive = request.interaction === 'hover' || request.interaction === 'focus'
+    if (this.busy || (passive && this.panel?.dataset.afh === 'editor')) return
+    clearTimeout(this.previewTimer)
+    if (passive && this.previewValue === request.value && this.panel?.dataset.afh === 'review') return
+    const generation = ++this.openGeneration
+    this.previewValue = request.value
     const data = this.api.parse(request.value)
     if (!data) return
     const session = this.session()
     const scope = this.scope()
     if (scope == null) return
     const draft = request.editable ? await this.host.composer.getDraft(session) ?? '' : ''
-    if (this.disposed || this.busy || this.scope() !== scope) return
+    if (this.disposed || this.busy || this.scope() !== scope || generation !== this.openGeneration) return
     const attachment = readAttachments(draft, this.api).find(part => part.value === request.value)
     if (request.editable && !attachment) return
     if (request.remove) {
@@ -467,10 +520,16 @@ export class AnnotateController {
     }
     this.close(false)
     this.owner = session
+    this.preview = passive
+    this.previewValue = request.value
     this.anchor = request.anchor || { left: 24, top: window.innerHeight - 180, bottom: window.innerHeight - 170 }
     this.panel = this.surface('review')
     this.panel.setAttribute('role', 'dialog')
     this.panel.setAttribute('aria-label', 'Response annotations')
+    this.panel.addEventListener('pointerenter', () => clearTimeout(this.previewTimer))
+    this.panel.addEventListener('pointerleave', () => this.schedulePreviewClose())
+    this.panel.addEventListener('focusin', () => clearTimeout(this.previewTimer))
+    this.panel.addEventListener('focusout', () => this.schedulePreviewClose())
     const header = node('div', 'afh-header')
     header.append(node('span', 'afh-title', data.label), button('Close annotations', 'close', () => this.close(true)))
     const list = node('ol', 'afh-items')
@@ -479,7 +538,7 @@ export class AnnotateController {
       row.append(node('span', 'afh-number', `${index + 1}.`))
       const body = node('div', '')
       const heading = node('div', 'afh-item-head')
-      heading.append(node('span', '', 'Selected text'))
+      heading.append(node('span', '', 'Selected text:'))
       if (request.editable) {
         const actions = node('div', 'afh-actions')
         actions.append(button(`Edit annotation ${index + 1}`, 'edit', () => this.edit({ text: item.text, session, scope, anchor: this.anchor }, item, attachment)), button(`Remove annotation ${index + 1}`, 'trash', async () => {
@@ -489,14 +548,18 @@ export class AnnotateController {
         heading.append(actions)
       }
       body.append(heading, node('blockquote', 'afh-quote', item.text))
-      if (item.comment) body.append(node('p', 'afh-comment', item.comment))
+      if (item.comment) {
+        body.append(node('div', 'afh-comment-label', 'User comment:'), node('p', 'afh-comment', item.comment))
+      }
       row.append(body)
       list.append(row)
     })
+    header.classList.add('afh-sr-only')
+    header.querySelector('button').tabIndex = -1
     this.panel.append(header, list)
     this.position()
     this.panel.tabIndex = -1
-    this.panel.focus({ preventScroll: true })
+    if (!passive) this.panel.focus({ preventScroll: true })
   }
 
   async remove(session, attachment, id, scope = this.scope()) {
@@ -510,6 +573,7 @@ export class AnnotateController {
       const items = id ? current.data.annotations.filter(item => item.id !== id) : []
       await this.writeDraft(session, scope, draft, replaceAttachment(draft, current, items, this.api))
       for (const item of current.data.annotations) if (!items.some(remaining => remaining.id === item.id)) this.ranges.delete(item.id)
+      this.syncMarkerNumbers(items)
       this.refreshHighlights()
       this.close(true)
       this.status.textContent = 'Annotation removed.'
@@ -518,6 +582,69 @@ export class AnnotateController {
       this.host.notify({ kind: 'error', message: error.message })
       return null
     } finally { this.busy = false }
+  }
+
+  schedulePreviewClose() {
+    clearTimeout(this.previewTimer)
+    this.previewTimer = setTimeout(() => {
+      if ((this.preview || (!this.panel && this.previewValue)) && !this.panel?.matches(':hover, :focus-within')) this.close(false)
+    }, 350)
+  }
+
+  syncMarkerNumbers(annotations) {
+    annotations.forEach((item, index) => {
+      const entry = this.ranges.get(item.id)
+      if (entry) entry.number = index + 1
+    })
+  }
+
+  async openMarker(id, interaction, marker) {
+    const entry = this.ranges.get(id)
+    if (!entry || entry.scope !== this.scope()) return
+    const draft = await this.host.composer.getDraft(entry.session)
+    if (this.disposed || entry.scope !== this.scope() || !marker.isConnected) return
+    const part = readAttachments(draft || '', this.api).find(value => value.data.annotations.some(item => item.id === id))
+    // A sent or externally removed draft no longer owns an editable marker.
+    if (!part) { this.ranges.delete(id); this.refreshHighlights(); return }
+    await this.open({ value: part.value, editable: true, anchor: marker.getBoundingClientRect(), interaction })
+  }
+
+  positionMarkers() {
+    for (const [id, marker] of this.markers) {
+      const entry = this.ranges.get(id)
+      if (!entry || entry.scope !== this.scope()) { marker.remove(); this.markers.delete(id) }
+    }
+    const placed = []
+    for (const [id, entry] of this.ranges) {
+      if (entry.scope !== this.scope() || !entry.number) continue
+      const rects = entry.range.getClientRects?.()
+      const rect = rects?.[rects.length - 1]
+      if (!rect) continue
+      let marker = this.markers.get(id)
+      if (!marker) {
+        marker = button(`Annotation ${entry.number}`, null, () => this.openMarker(id, undefined, marker), 'afh-marker')
+        marker.dataset.afh = 'marker'
+        marker.setAttribute('aria-haspopup', 'dialog')
+        marker.addEventListener('pointerenter', () => this.openMarker(id, 'hover', marker))
+        marker.addEventListener('pointerleave', () => this.schedulePreviewClose())
+        marker.addEventListener('focus', () => this.openMarker(id, 'focus', marker))
+        marker.addEventListener('blur', () => this.schedulePreviewClose())
+        document.body.append(marker)
+        this.markers.set(id, marker)
+      }
+      marker.textContent = String(entry.number)
+      marker.setAttribute('aria-label', `Annotation ${entry.number}`)
+      marker.hidden = rect.bottom < 0 || rect.top > window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth
+      let left = Math.max(8, Math.min(rect.right - 10, window.innerWidth - 32))
+      let top = Math.max(8, rect.top - 23)
+      while (placed.some(p => Math.abs(p.left - left) < 27 && Math.abs(p.top - top) < 27)) {
+        if (left + 56 < window.innerWidth) left += 28
+        else top += 28
+      }
+      placed.push({left, top})
+      marker.style.left = `${left}px`
+      marker.style.top = `${top}px`
+    }
   }
 
   observeRanges() {
@@ -540,6 +667,7 @@ export class AnnotateController {
       if (!entry.range.commonAncestorContainer.isConnected || entry.range.collapsed || entry.range.toString() !== entry.text) this.ranges.delete(id)
     }
     this.observeRanges()
+    this.positionMarkers()
     if (!globalThis.CSS?.highlights || !globalThis.Highlight) return
     const ranges = [...this.ranges.values()].filter(entry => entry.scope === this.scope() && entry.range.commonAncestorContainer.isConnected).map(entry => entry.range)
     CSS.highlights.set('annotate-for-hermes', new Highlight(...ranges))
@@ -554,6 +682,8 @@ export class AnnotateController {
     globalThis.CSS?.highlights?.delete('annotate-for-hermes')
     this.pending.clear()
     this.ranges.clear()
+    this.markers.forEach(marker => marker.remove())
+    this.markers.clear()
   }
 }
 

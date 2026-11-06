@@ -22,3 +22,7 @@ The payload is a versioned, self-contained reference with ordered `{id, text, co
 Editable chip events target the current draft. Saved-message chips open a read-only preview. The existing Hermes send/queue lifecycle owns submission; the plugin never calls submit.
 
 The patch carries Hermes source context under `HERMES-LICENSE`.
+
+## 0.23.0 local review candidate
+
+`response-annotations-v0.23.0.patch` is the complete annotation-only patch against stable commit `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`. Apply it instead of the older patch on that base. It adds optional `interaction: 'hover' | 'focus' | 'leave'` intent to `onOpen` events; plugins using click-only events remain compatible. These local changes have not been published to the upstream PR.
