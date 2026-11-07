@@ -32,7 +32,7 @@ In **Capabilities → Plugins → Annotate for Hermes**, enable the **Desktop** 
 
 The CLI flag enables the separate agent component; the Desktop switch enables this interface. No npm setup is needed to use the plugin.
 
-On stock Hermes, installation displays a compatibility notice. The plugin does not patch the app. Its manifest minimum (`>=0.22.5`) is a development baseline, not a supported stable release. The catalog PR remains a draft until the SDK merges and ships in stable Hermes, when the minimum version and catalog pin can be finalized.
+On stock Hermes, enabling the Desktop plugin displays a compatibility notice. The plugin does not patch the app. Its manifest minimum (`>=0.22.5`) is a development baseline, not a supported stable release. The catalog PR remains a draft until the SDK merges and ships in stable Hermes, when the minimum version and catalog pin can be finalized.
 
 ## Developer notes
 
@@ -44,7 +44,7 @@ npm --prefix tests test
 hermes plugins validate .
 ```
 
-The current candidate has 49 plugin tests. A fresh Hermes v0.23.0 checkout with the included patch passed 129 focused integration tests and a production build. A packaged macOS build has been exercised with a real Grok response, saved drafts, editing, previews, and microphone transcription. See [behavior and testing](docs/BEHAVIOR-AND-TESTING.md) for exact scope and historical fixture evidence.
+The current candidate passes 64 plugin tests. A separate Hermes v0.23.0 checkout with the included patch passed 229 focused native tests, a production build, and packaging. Earlier packaged macOS checks exercised real Grok responses, saved drafts, editing, previews, and microphone transcription. The latest packaged macOS checks passed annotation review and keyboard focus recovery in a split pane, using an existing profile with the candidate plugin loaded manually. See [behavior and testing](docs/BEHAVIOR-AND-TESTING.md) for the scope of each check.
 
 Windows, Linux, screen readers, touch input, and the official updater path remain unverified. Native updates can replace the local SDK patch until it ships upstream. Saved attachment content persists through normal draft storage; unsaved comments and source markers do not survive an app reload. Model context limits still apply.
 

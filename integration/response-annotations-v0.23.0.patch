@@ -1,29 +1,61 @@
 diff --git a/apps/desktop/src/app/chat/composer/directive-actions.test.tsx b/apps/desktop/src/app/chat/composer/directive-actions.test.tsx
-index dc81c446f0..eb1f88f7a3 100644
+index dc81c446f04ee3c655f150ca1df0e724b0aeb988..96c1d9c0ae3f2e0226d41cc465d01bf71ae53a75 100644
 --- a/apps/desktop/src/app/chat/composer/directive-actions.test.tsx
 +++ b/apps/desktop/src/app/chat/composer/directive-actions.test.tsx
-@@ -2,6 +2,8 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
- import { afterEach, describe, expect, it, vi } from 'vitest'
+@@ -3,10 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
  
  import { I18nProvider } from '@/i18n'
-+import { onResponseAnnotationsOpen } from '@/lib/response-annotations'
-+
  import { IS_MAC } from '@/lib/keybinds/combo'
++import { onResponseAnnotationsOpen } from '@/lib/response-annotations'
  import { $previewTabs, closeRightRail } from '@/store/preview'
  
-@@ -219,3 +221,27 @@ describe('ComposerDirectiveActions', () => {
+ import { ComposerDirectiveActions } from './directive-actions'
+-import { refChipElement } from './rich-editor'
++import { refChipElement, refChipHtml } from './rich-editor'
+ 
+ const desktopWindow = window as unknown as { hermesDesktop?: Window['hermesDesktop'] }
+ 
+@@ -219,3 +220,55 @@ describe('ComposerDirectiveActions', () => {
      expect(pillValue()).toBe('https://late.example')
    })
  })
 +
 +
 +describe('annotation preview intent', () => {
++  it.each(['element', 'html'])('keeps open and remove as separate keyboard controls in %s chips', factory => {
++    const value = JSON.stringify({ type: 'response-annotations', version: 1, label: '1 annotation', annotations: [{ id: 'a', text: 'Selected words', comment: '' }] })
++    const editor = mountEditor([{ kind: 'annotation', value }])
++
++    if (factory === 'html') {
++      editor.innerHTML = refChipHtml('annotation', `\`${value}\``)
++    }
++
++    const chip = chips(editor, 'annotation')[0]!
++    const controls = chip.querySelectorAll<HTMLElement>('[role="button"]')
++    expect(chip.getAttribute('role')).toBe('group')
++    expect(controls).toHaveLength(2)
++    expect(chip.querySelector('[role="button"] [role="button"]')).toBeNull()
++    const received = vi.fn()
++    const off = onResponseAnnotationsOpen(received)
++
++    try {
++      for (const [index, control] of [...controls].entries()) {
++        expect(control.tabIndex).toBe(0)
++        control.focus()
++        fireEvent.keyDown(control, { key: 'Enter' })
++        expect(received.mock.calls.at(-1)?.[0]).toMatchObject({ value, editable: true, remove: index === 1 })
++      }
++    } finally {
++      off()
++    }
++  })
 +  it('exposes hover and keyboard previews without activating or removing the attachment', () => {
 +    const value = JSON.stringify({ type: 'response-annotations', version: 1, label: '1 annotation', annotations: [{ id: 'a', text: 'Selected words', comment: '' }] })
 +    const editor = mountEditor([{ kind: 'annotation', value }])
 +    const chip = chips(editor, 'annotation')[0]!
 +    const received = vi.fn()
 +    const off = onResponseAnnotationsOpen(received)
++
 +    try {
 +      hover(chip)
 +      expect(received.mock.calls.at(-1)?.[0]).toMatchObject({ value, editable: true, interaction: 'hover' })
@@ -40,7 +72,7 @@ index dc81c446f0..eb1f88f7a3 100644
 +  })
 +})
 diff --git a/apps/desktop/src/app/chat/composer/directive-actions.tsx b/apps/desktop/src/app/chat/composer/directive-actions.tsx
-index df261d87ec..7430da9cb2 100644
+index df261d87ec51aadeb1864186930abe2c124c2bad..7430da9cb2574ed4c7f80e633a06db4fafe17835 100644
 --- a/apps/desktop/src/app/chat/composer/directive-actions.tsx
 +++ b/apps/desktop/src/app/chat/composer/directive-actions.tsx
 @@ -18,6 +18,7 @@ import { composerFloatingPill } from '@/components/chat/composer-dock'
@@ -132,7 +164,7 @@ index df261d87ec..7430da9cb2 100644
        window.removeEventListener('scroll', reanchor, true)
        window.removeEventListener('resize', reanchor)
 diff --git a/apps/desktop/src/app/chat/composer/hooks/use-composer-voice.ts b/apps/desktop/src/app/chat/composer/hooks/use-composer-voice.ts
-index eadca6ff7b..54a16c3d8b 100644
+index eadca6ff7b83da592216de5d81900f7ee99dd6b9..54a16c3d8b00030b259abc006b39e3fdab22c214 100644
 --- a/apps/desktop/src/app/chat/composer/hooks/use-composer-voice.ts
 +++ b/apps/desktop/src/app/chat/composer/hooks/use-composer-voice.ts
 @@ -31,6 +31,7 @@ import { useComposerScope, useComposerSurfaceId } from '../scope'
@@ -166,8 +198,171 @@ index eadca6ff7b..54a16c3d8b 100644
    const surfaceId = useComposerSurfaceId()
    const capturing = voiceConversationActive || voiceStatus !== 'idle'
  
+diff --git a/apps/desktop/src/app/chat/composer/hooks/use-plugin-dictation.test.tsx b/apps/desktop/src/app/chat/composer/hooks/use-plugin-dictation.test.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..52a182a126c9a681579d2abf9fb65463a10713d4
+--- /dev/null
++++ b/apps/desktop/src/app/chat/composer/hooks/use-plugin-dictation.test.tsx
+@@ -0,0 +1,83 @@
++import { act, cleanup, renderHook } from '@testing-library/react'
++import { afterEach, describe, expect, it, vi } from 'vitest'
++
++import { type DictationHandle, startComposerDictation } from '@/lib/composer-dictation'
++
++import { usePluginDictation } from './use-plugin-dictation'
++import type { DictationDestination, useVoiceRecorder } from './use-voice-recorder'
++
++vi.mock('../scope', () => ({ useComposerScope: () => ({ connectionId: 'local', profile: 'test' }) }))
++afterEach(cleanup)
++
++describe('plugin dictation routing', () => {
++  it('claims exactly the addressed recorder and drops callbacks after a session switch', () => {
++    let destination: DictationDestination | undefined
++
++    const recorder = {
++      voiceStatus: 'idle',
++      start: vi.fn(async (value: DictationDestination) => {
++        destination = value
++      }),
++      stop: vi.fn(async () => undefined),
++      cancel: vi.fn()
++    } as unknown as ReturnType<typeof useVoiceRecorder>
++
++    const recipient = { onTranscript: vi.fn(), onState: vi.fn() }
++
++    const hook = renderHook(
++      ({ sessionId }) => usePluginDictation({ target: 'main', sessionId, disabled: false, recorder }),
++      { initialProps: { sessionId: 'a' } }
++    )
++
++    expect(startComposerDictation('tile:other', recipient)).toBeNull()
++    let handle: DictationHandle | null = null
++    act(() => {
++      handle = startComposerDictation('main', recipient)
++    })
++    expect(handle).not.toBeNull()
++    expect(startComposerDictation('main', recipient)).toBeNull()
++    act(() => {
++      destination!.onTranscript('Comment only')
++      handle!.stop()
++    })
++    expect(recipient.onTranscript).toHaveBeenCalledWith('Comment only')
++    expect(recorder.stop).toHaveBeenCalledOnce()
++    hook.rerender({ sessionId: 'b' })
++    expect(recorder.cancel).toHaveBeenCalledOnce()
++    destination!.onTranscript('Late result')
++    handle!.stop()
++    expect(recipient.onTranscript).toHaveBeenCalledTimes(1)
++    expect(recorder.stop).toHaveBeenCalledOnce()
++    hook.unmount()
++    expect(startComposerDictation('main', recipient)).toBeNull()
++  })
++
++  it('rejects a disabled or occupied recorder and allows a new take after completion', () => {
++    let destination: DictationDestination | undefined
++
++    const recorder = {
++      voiceStatus: 'recording',
++      start: vi.fn(async (value: DictationDestination) => {
++        destination = value
++      }),
++      stop: vi.fn(),
++      cancel: vi.fn()
++    } as unknown as ReturnType<typeof useVoiceRecorder>
++
++    const recipient = { onTranscript: vi.fn(), onState: vi.fn() }
++
++    const hook = renderHook(
++      ({ disabled }) => usePluginDictation({ target: 'main', sessionId: 'a', disabled, recorder }),
++      { initialProps: { disabled: false } }
++    )
++
++    expect(startComposerDictation('main', recipient)).toBeNull()
++    recorder.voiceStatus = 'idle'
++    hook.rerender({ disabled: true })
++    expect(startComposerDictation('main', recipient)).toBeNull()
++    hook.rerender({ disabled: false })
++    expect(startComposerDictation('main', recipient)).not.toBeNull()
++    act(() => destination!.onState?.('idle'))
++    expect(startComposerDictation('main', recipient)).not.toBeNull()
++  })
++})
+diff --git a/apps/desktop/src/app/chat/composer/hooks/use-plugin-dictation.ts b/apps/desktop/src/app/chat/composer/hooks/use-plugin-dictation.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..0052dcdc497147b3caf12dbc6a1db148040e7cbe
+--- /dev/null
++++ b/apps/desktop/src/app/chat/composer/hooks/use-plugin-dictation.ts
+@@ -0,0 +1,68 @@
++import { useLayoutEffect, useRef } from 'react'
++
++import { type DictationHandle, registerComposerDictation } from '@/lib/composer-dictation'
++
++import type { ComposerTarget } from '../focus'
++import { useComposerScope } from '../scope'
++
++import type { useVoiceRecorder } from './use-voice-recorder'
++
++interface Options {
++  target: ComposerTarget
++  sessionId: string | null | undefined
++  disabled: boolean
++  recorder: ReturnType<typeof useVoiceRecorder>
++}
++
++/** Routes a plugin comment through the existing recorder without writing into the chat draft. */
++export function usePluginDictation(options: Options): void {
++  const latest = useRef(options)
++  latest.current = options
++  const { connectionId, profile } = useComposerScope()
++
++  useLayoutEffect(() => {
++    let active: DictationHandle | null = null
++
++    const unregister = registerComposerDictation(options.target, recipient => {
++      const current = latest.current
++
++      if (active || current.disabled || current.recorder.voiceStatus !== 'idle') {return null}
++
++      const recorder = current.recorder
++
++      const handle: DictationHandle = {
++        stop: () => {
++          if (active === handle) {void recorder.stop()}
++        },
++        cancel: () => {
++          if (active !== handle) {return}
++          active = null
++          recorder.cancel()
++          recipient.onState('idle')
++        }
++      }
++
++      active = handle
++      recipient.onState('starting')
++      void recorder.start({
++        focusInput: () => undefined,
++        onTranscript: text => {
++          if (active === handle) {recipient.onTranscript(text)}
++        },
++        onState: status => {
++          if (active !== handle) {return}
++
++          if (status === 'idle') {active = null}
++          recipient.onState(status)
++        }
++      })
++
++      return handle
++    })
++
++    return () => {
++      unregister()
++      active?.cancel()
++    }
++  }, [options.target, options.sessionId, connectionId, profile])
++}
 diff --git a/apps/desktop/src/app/chat/composer/hooks/use-voice-recorder-warmup.test.tsx b/apps/desktop/src/app/chat/composer/hooks/use-voice-recorder-warmup.test.tsx
-index 38b8a37ec9..660a2c793b 100644
+index 38b8a37ec96402b782fa672ee53a17b4b2c1471f..660a2c793bf24790da49145c4a6bf85dd0f2c1aa 100644
 --- a/apps/desktop/src/app/chat/composer/hooks/use-voice-recorder-warmup.test.tsx
 +++ b/apps/desktop/src/app/chat/composer/hooks/use-voice-recorder-warmup.test.tsx
 @@ -305,4 +305,44 @@ describe('useVoiceRecorder STT readiness barrier', () => {
@@ -216,7 +411,7 @@ index 38b8a37ec9..660a2c793b 100644
 +  })
  })
 diff --git a/apps/desktop/src/app/chat/composer/hooks/use-voice-recorder.ts b/apps/desktop/src/app/chat/composer/hooks/use-voice-recorder.ts
-index fad9788df4..d9b6a49bdc 100644
+index fad9788df49d6516c9df3dab069ab06dc98bf847..d9b6a49bdcb9be643bc6036b1a419e59cd46207f 100644
 --- a/apps/desktop/src/app/chat/composer/hooks/use-voice-recorder.ts
 +++ b/apps/desktop/src/app/chat/composer/hooks/use-voice-recorder.ts
 @@ -26,7 +26,14 @@ interface VoiceRecorderOptions {
@@ -353,7 +548,7 @@ index fad9788df4..d9b6a49bdc 100644
 +  return { cancel, dictate, start, stop, voiceActivityState, voiceStatus }
  }
 diff --git a/apps/desktop/src/app/chat/composer/rich-editor.ts b/apps/desktop/src/app/chat/composer/rich-editor.ts
-index 16969cb01e..23889e3318 100644
+index 16969cb01ec9972d0d3947514ef21589bbadde8e..1bfbc639329a80e4a97f5f6b826ae49b2fd26cae 100644
 --- a/apps/desktop/src/app/chat/composer/rich-editor.ts
 +++ b/apps/desktop/src/app/chat/composer/rich-editor.ts
 @@ -16,6 +16,7 @@ import {
@@ -364,50 +559,91 @@ index 16969cb01e..23889e3318 100644
  
  import { slashCommandMatches, type SlashCommandScanOptions } from './slash-refs'
  
-@@ -132,7 +133,14 @@ export function refChipHtml(kind: string, rawValue: string, displayLabel?: strin
+@@ -132,7 +133,19 @@ export function refChipHtml(kind: string, rawValue: string, displayLabel?: strin
  
    const label = displayLabel || refChipLabel(kind, id)
  
 -  return `<span contenteditable="false" title="${escapeHtml(id)}" data-ref-text="${escapeHtml(text)}" data-ref-id="${escapeHtml(id)}" data-ref-kind="${escapeHtml(kind)}" ${refAttrsHtml(kind)}>${directiveIconSvg(kind)}${escapeHtml(label)}</span>`
 +  const annotationAttrs =
-+    kind === 'annotation' ? `role="button" tabindex="0" aria-label="${escapeHtml(label)}"` : `title="${escapeHtml(id)}"`
++    kind === 'annotation' ? `role="group" aria-label="${escapeHtml(label)}"` : `title="${escapeHtml(id)}"`
 +
-+  return `<span contenteditable="false" ${annotationAttrs} data-ref-text="${escapeHtml(text)}" data-ref-id="${escapeHtml(id)}" data-ref-kind="${escapeHtml(kind)}" ${refAttrsHtml(kind)}>${directiveIconSvg(kind)}${escapeHtml(label)}${kind === 'annotation' ? annotationRemoveHtml() : ''}</span>`
++  const content = kind === 'annotation' ? annotationContentHtml(label) : `${directiveIconSvg(kind)}${escapeHtml(label)}`
++
++  return `<span contenteditable="false" ${annotationAttrs} data-ref-text="${escapeHtml(text)}" data-ref-id="${escapeHtml(id)}" data-ref-kind="${escapeHtml(kind)}" ${refAttrsHtml(kind)}>${content}</span>`
 +}
 +
-+function annotationRemoveHtml() {
-+  return `<span data-annotation-remove role="button" tabindex="0" aria-label="${escapeHtml(translateNow('common.remove'))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span>`
++function annotationContentHtml(label: string) {
++  const open = `<span data-annotation-open role="button" tabindex="0" aria-label="${escapeHtml(label)}">${directiveIconSvg('annotation')}${escapeHtml(label)}</span>`
++  const remove = `<span data-annotation-remove role="button" tabindex="0" aria-label="${escapeHtml(translateNow('common.remove'))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span>`
++
++  return open + remove
  }
  
  export function refChipElement(kind: string, rawValue: string, displayLabel?: string) {
-@@ -142,6 +150,14 @@ export function refChipElement(kind: string, rawValue: string, displayLabel?: st
+@@ -142,12 +155,24 @@ export function refChipElement(kind: string, rawValue: string, displayLabel?: st
  
    chip.contentEditable = 'false'
    chip.title = id
 +
 +  if (kind === 'annotation') {
 +    chip.removeAttribute('title')
-+    chip.setAttribute('role', 'button')
-+    chip.tabIndex = 0
++    chip.setAttribute('role', 'group')
 +    chip.setAttribute('aria-label', displayLabel || refChipLabel(kind, id))
 +  }
 +
    chip.dataset.refText = text
    chip.dataset.refId = id
    chip.dataset.refKind = kind
-@@ -149,6 +165,10 @@ export function refChipElement(kind: string, rawValue: string, displayLabel?: st
+   chip.className = 'ref'
    chip.dataset.ref = referenceKind(kind)
-   chip.append(directiveIconElement(kind), document.createTextNode(displayLabel || refChipLabel(kind, id)))
- 
-+  if (kind === 'annotation') {
-+    chip.insertAdjacentHTML('beforeend', annotationRemoveHtml())
-+  }
+-  chip.append(directiveIconElement(kind), document.createTextNode(displayLabel || refChipLabel(kind, id)))
 +
++  if (kind === 'annotation') {
++    chip.innerHTML = annotationContentHtml(displayLabel || refChipLabel(kind, id))
++  } else {
++    chip.append(directiveIconElement(kind), document.createTextNode(displayLabel || refChipLabel(kind, id)))
++  }
+ 
    return chip
  }
- 
+diff --git a/apps/desktop/src/components/assistant-ui/annotation-chip-interaction.test.tsx b/apps/desktop/src/components/assistant-ui/annotation-chip-interaction.test.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..696f5ee56a4e43f0836805ba52d315d8d393a8b5
+--- /dev/null
++++ b/apps/desktop/src/components/assistant-ui/annotation-chip-interaction.test.tsx
+@@ -0,0 +1,30 @@
++import { cleanup, fireEvent, render, screen } from '@testing-library/react'
++import { afterEach, expect, it, vi } from 'vitest'
++
++import { formatResponseAnnotations, onResponseAnnotationsOpen } from '@/lib/response-annotations'
++
++import { DirectiveContent } from './directive-text'
++
++afterEach(cleanup)
++
++it('opens a sent annotation preview without activating the containing message editor', () => {
++  const edit = vi.fn()
++  const prepareEdit = vi.fn()
++  const preview = vi.fn()
++  const unsubscribe = onResponseAnnotationsOpen(preview)
++
++  const text = formatResponseAnnotations({
++    type: 'response-annotations', version: 1, label: '1 annotation',
++    annotations: [{ id: 'feedback', text: 'Launch', comment: 'Make a checklist.' }]
++  })
++
++  try {
++    render(<div onClick={edit} onPointerDown={prepareEdit}><DirectiveContent text={text} /></div>)
++    const chip = screen.getByRole('button', { name: '1 annotation' })
++    fireEvent.pointerDown(chip)
++    fireEvent.click(chip)
++    expect(preview).toHaveBeenCalledWith(expect.objectContaining({ editable: false }))
++    expect(prepareEdit).not.toHaveBeenCalled()
++    expect(edit).not.toHaveBeenCalled()
++  } finally { unsubscribe() }
++})
 diff --git a/apps/desktop/src/components/assistant-ui/directive-text.tsx b/apps/desktop/src/components/assistant-ui/directive-text.tsx
-index 3af40619b8..e05c0237cd 100644
+index 3af40619b817f46fbb0a6b2ed4a6f6e42a0b8915..e05c0237cd6ea394dd8c22670411a8b9355c067c 100644
 --- a/apps/desktop/src/components/assistant-ui/directive-text.tsx
 +++ b/apps/desktop/src/components/assistant-ui/directive-text.tsx
 @@ -14,6 +14,7 @@ import { ExternalLink, openLink } from '@/lib/external-link'
@@ -480,7 +716,7 @@ index 3af40619b8..e05c0237cd 100644
      </button>
    ) : (
 diff --git a/apps/desktop/src/components/assistant-ui/reference-kinds.ts b/apps/desktop/src/components/assistant-ui/reference-kinds.ts
-index 51b5976d37..ab311c74a8 100644
+index 51b5976d37abe982d7301f2bdedebd3f778400c0..ab311c74a873f59804655cf56b4613848cd3fc1c 100644
 --- a/apps/desktop/src/components/assistant-ui/reference-kinds.ts
 +++ b/apps/desktop/src/components/assistant-ui/reference-kinds.ts
 @@ -23,6 +23,7 @@ export type ReferenceKind =
@@ -536,118 +772,153 @@ index 51b5976d37..ab311c74a8 100644
  
  /**
   * A fresh matcher for every surface that has to find references in text: the
-diff --git a/apps/desktop/src/sdk/composer.ts b/apps/desktop/src/sdk/composer.ts
-index 565db36838..e7393d08e1 100644
---- a/apps/desktop/src/sdk/composer.ts
-+++ b/apps/desktop/src/sdk/composer.ts
-@@ -1,12 +1,20 @@
- import {
-   type ComposerInsertMode,
-   type ComposerTarget,
-+  getActiveComposer,
-   requestComposerFocus,
-   requestComposerGetDraft,
-   requestComposerInsertAcked,
-   requestComposerSetDraft,
-   requestComposerSubmit
- } from '@/app/chat/composer/focus'
-+import {
-+  captureResponseSelection,
-+  formatResponseAnnotations,
-+  onResponseAnnotationsOpen,
-+  parseResponseAnnotations
-+} from '@/lib/response-annotations'
-+import { type DictationRecipient, startComposerDictation } from '@/lib/composer-dictation'
- import { freshDraftScope, takeSessionDraft } from '@/store/composer'
- import { $activeSessionId, $selectedStoredSessionId } from '@/store/session'
- import { $sessionStates } from '@/store/session-states'
-@@ -63,6 +71,24 @@ const resolveComposerAddress = (
-  *  resolves to no live surface returns `null`/`false` (or is dropped, for
-  *  `focus`) — it never broadcasts and never throws. */
- export const composerHost = {
-+  /** User-initiated dictation into a plugin field using the addressed composer's STT settings.
-+   * Stop transcribes; cancel discards audio. The caller must cancel when its field closes.
-+   * Returns null if the surface is absent, busy recording, or disabled. Never submits. */
-+  dictation: {
-+    version: 1,
-+    start: (sessionId: null | string, recipient: DictationRecipient) => {
-+      const { target } = resolveComposerAddress(sessionId)
-+      return target === null ? null : startComposerDictation(target === 'active' ? getActiveComposer() : target, recipient)
-+    }
-+  },
-+  /** Self-contained annotation chips; feature-detect this on older desktops. */
-+  annotations: {
-+    version: 1,
-+    captureSelection: captureResponseSelection,
-+    format: formatResponseAnnotations,
-+    parse: parseResponseAnnotations,
-+    onOpen: onResponseAnnotationsOpen
-+  },
-   /** The live draft text of one composer, or null when nothing holds it.
-    *  Mounted surfaces answer with their in-DOM text (current, incl.
-    *  unsaved keystrokes); an unmounted session falls back to its debounced
-diff --git a/apps/desktop/src/styles.css b/apps/desktop/src/styles.css
-index 100d2c6c6f..b4eb3a2172 100644
---- a/apps/desktop/src/styles.css
-+++ b/apps/desktop/src/styles.css
-@@ -4267,3 +4267,54 @@ html[data-hermes-desktop-host='browser'] [data-slot='sidebar-container'] {
-   background: none;
-   color: var(--err-ink);
- }
+diff --git a/apps/desktop/src/lib/composer-dictation.ts b/apps/desktop/src/lib/composer-dictation.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..0e4c5904685119ecb4462d44694a78da5ffefb4e
+--- /dev/null
++++ b/apps/desktop/src/lib/composer-dictation.ts
+@@ -0,0 +1,29 @@
++import type { ComposerTarget } from '@/app/chat/composer/focus'
 +
-+/* Response annotations are attachments inside the composer, with one shared preview. */
-+.ref[data-ref='annotation'] {
-+  display: inline-flex;
-+  align-items: center;
-+  gap: 0.35rem;
-+  max-width: 100%;
-+  margin-block: 0.25rem 0.5rem;
-+  padding: 0.35rem 0.55rem;
-+  border: 1px solid var(--ui-stroke-secondary);
-+  border-radius: 0.65rem;
-+  color: var(--ui-text-primary);
-+  background: var(--ui-bg-elevated);
-+  font: inherit;
-+  line-height: 1.35;
-+  white-space: nowrap;
-+  cursor: pointer;
-+  user-select: none;
-+  text-decoration: none;
++export type DictationStatus = 'starting' | 'recording' | 'transcribing' | 'idle'
++
++export interface DictationRecipient {
++  onTranscript: (text: string) => void
++  onState: (status: DictationStatus) => void
 +}
-+.ref[data-ref='annotation']:hover {
-+  background: var(--chrome-action-hover);
-+  text-decoration: none;
++
++export interface DictationHandle {
++  stop: () => void
++  cancel: () => void
 +}
-+.ref[data-ref='annotation']:focus-visible,
-+[data-annotation-remove]:focus-visible {
-+  outline: 2px solid var(--ui-accent);
-+  outline-offset: 2px;
++
++type StartDictation = (recipient: DictationRecipient) => DictationHandle | null
++const surfaces = new Map<ComposerTarget, StartDictation>()
++
++/** One visible composer owns capture, provider configuration and microphone lifecycle. */
++export function registerComposerDictation(target: ComposerTarget, start: StartDictation): () => void {
++  surfaces.set(target, start)
++
++  return () => {
++    if (surfaces.get(target) === start) {surfaces.delete(target)}
++  }
 +}
-+.ref[data-ref='annotation'] > svg {
-+  margin: 0;
++
++export function startComposerDictation(target: ComposerTarget, recipient: DictationRecipient): DictationHandle | null {
++  return surfaces.get(target)?.(recipient) ?? null
 +}
-+[data-annotation-remove] {
-+  display: inline-flex;
-+  align-items: center;
-+  justify-content: center;
-+  width: 1.25rem;
-+  height: 1.25rem;
-+  margin-inline-start: 0.15rem;
-+  border-radius: 50%;
-+  color: var(--ui-text-secondary);
-+  cursor: pointer;
-+}
-+[data-annotation-remove]:hover {
-+  background: var(--ui-stroke-secondary);
-+  color: var(--ui-text-primary);
-+}
-+[data-annotation-remove] svg {
-+  width: 0.875rem;
-+  height: 0.875rem;
-+}
+diff --git a/apps/desktop/src/lib/response-annotations.test.ts b/apps/desktop/src/lib/response-annotations.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..c4b6766e2c2e5cb1fbe5cafc9e69bfe489ee8ef7
+--- /dev/null
++++ b/apps/desktop/src/lib/response-annotations.test.ts
+@@ -0,0 +1,103 @@
++import { describe, expect, it } from 'vitest'
++
++import { composerPlainText, refChipHtml } from '@/app/chat/composer/rich-editor'
++import { referenceRe } from '@/components/assistant-ui/reference-kinds'
++
++import { captureResponseSelection, formatResponseAnnotations, parseResponseAnnotations } from './response-annotations'
++
++describe('response annotation references', () => {
++  it('does not offer response annotations for selected user text or the main draft', () => {
++    for (const markup of ['<p>A user message</p>', '<div contenteditable="true">An ordinary reply</div>']) {
++      const root = document.createElement('div')
++      root.innerHTML = markup
++      document.body.append(root)
++      const range = document.createRange()
++      range.selectNodeContents(root.firstElementChild!)
++      window.getSelection()!.removeAllRanges()
++      window.getSelection()!.addRange(range)
++      expect(captureResponseSelection()).toBeNull()
++      root.remove()
++    }
++
++    window.getSelection()!.removeAllRanges()
++  })
++  it('keeps three pairs in one native chip and round-trips every character', () => {
++    const data = {
++      type: 'response-annotations' as const,
++      version: 1 as const,
++      label: '3 annotations',
++      annotations: [
++        { id: '1', text: 'First passage', comment: 'First comment' },
++        { id: '2', text: '```js\n  call(`x`);\n```', comment: 'two\nlines' },
++        { id: '3', text: '@file:/private/example <script> /command', comment: 'Keep this literal' }
++      ]
++    }
++
++    const token = formatResponseAnnotations(data)
++    const matches = [...token.matchAll(referenceRe())]
++    expect(matches).toHaveLength(1)
++    expect(matches[0]![1]).toBe('annotation')
++    const raw = matches[0]![2]!
++    expect(parseResponseAnnotations(raw.slice(1, -1))).toEqual(data)
++    const editor = document.createElement('div')
++    editor.innerHTML = 'Existing reply ' + refChipHtml('annotation', raw)
++    expect(editor.textContent).toBe('Existing reply 3 annotations')
++    expect(composerPlainText(editor).trimEnd()).toBe('Existing reply ' + token)
++  })
++
++  it('refuses invalid, duplicate or oversized entries rather than hiding data', () => {
++    for (const value of [
++      '{}',
++      'not json',
++      JSON.stringify({ type: 'response-annotations', version: 1, label: '1', annotations: [] })
++    ]) {
++      expect(parseResponseAnnotations(value)).toBeNull()
++    }
++
++    expect(() =>
++      formatResponseAnnotations({
++        type: 'response-annotations',
++        version: 1,
++        label: '2 annotations',
++        annotations: [
++          { id: 'same', text: 'one', comment: '' },
++          { id: 'same', text: 'two', comment: '' }
++        ]
++      })
++    ).toThrow()
++  })
++  it('round-trips 1,000 annotations as one native chip and rejects oversized batches intact', () => {
++    const data = {
++      type: 'response-annotations' as const,
++      version: 1 as const,
++      label: '1000 annotations',
++      annotations: Array.from({ length: 1000 }, (_, index) => ({
++        id: String(index),
++        text: 'Selected passage ' + index,
++        comment: 'Comment ' + index
++      }))
++    }
++    const token = formatResponseAnnotations(data)
++    const matches = [...token.matchAll(referenceRe())]
++    expect(matches).toHaveLength(1)
++    const raw = matches[0]![2]!
++    expect(parseResponseAnnotations(raw.slice(1, -1))).toEqual(data)
++    const editor = document.createElement('div')
++    editor.innerHTML = refChipHtml('annotation', raw)
++    expect(editor.textContent).toBe('1000 annotations')
++    expect(composerPlainText(editor).trimEnd()).toBe(token)
++    expect(() =>
++      formatResponseAnnotations({
++        ...data,
++        annotations: [...data.annotations, { id: '1001', text: 'More', comment: '' }]
++      })
++    ).toThrow()
++    expect(() =>
++      formatResponseAnnotations({
++        ...data,
++        annotations: data.annotations.map(item => ({ ...item, comment: 'x'.repeat(600) }))
++      })
++    ).toThrow()
++    expect(data.annotations).toHaveLength(1000)
++  })
++})
 diff --git a/apps/desktop/src/lib/response-annotations.ts b/apps/desktop/src/lib/response-annotations.ts
 new file mode 100644
-index 0000000000..9994a4d34d
+index 0000000000000000000000000000000000000000..9994a4d34d43c0f8a9596efccd43ec2850c3510f
 --- /dev/null
 +++ b/apps/desktop/src/lib/response-annotations.ts
 @@ -0,0 +1,118 @@
@@ -769,346 +1040,237 @@ index 0000000000..9994a4d34d
 +
 +  return () => window.removeEventListener(OPEN_EVENT, receive)
 +}
-diff --git a/apps/desktop/src/lib/response-annotations.test.ts b/apps/desktop/src/lib/response-annotations.test.ts
+diff --git a/apps/desktop/src/sdk/composer-focus.test.ts b/apps/desktop/src/sdk/composer-focus.test.ts
 new file mode 100644
-index 0000000000..c4b6766e2c
+index 0000000000000000000000000000000000000000..0dfc22d81a34ebba09f96aa90a86467e519c5715
 --- /dev/null
-+++ b/apps/desktop/src/lib/response-annotations.test.ts
-@@ -0,0 +1,103 @@
-+import { describe, expect, it } from 'vitest'
++++ b/apps/desktop/src/sdk/composer-focus.test.ts
+@@ -0,0 +1,88 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 +
-+import { composerPlainText, refChipHtml } from '@/app/chat/composer/rich-editor'
-+import { referenceRe } from '@/components/assistant-ui/reference-kinds'
++import { focusComposerInput, markActiveComposer, onComposerFocusRequest } from '@/app/chat/composer/focus'
++import { RICH_INPUT_SLOT } from '@/app/chat/composer/rich-editor'
++import { $selectedStoredSessionId, setActiveSessionId } from '@/store/session'
 +
-+import { captureResponseSelection, formatResponseAnnotations, parseResponseAnnotations } from './response-annotations'
++import { composerHost } from './composer'
 +
-+describe('response annotation references', () => {
-+  it('does not offer response annotations for selected user text or the main draft', () => {
-+    for (const markup of ['<p>A user message</p>', '<div contenteditable="true">An ordinary reply</div>']) {
-+      const root = document.createElement('div')
-+      root.innerHTML = markup
-+      document.body.append(root)
-+      const range = document.createRange()
-+      range.selectNodeContents(root.firstElementChild!)
-+      window.getSelection()!.removeAllRanges()
-+      window.getSelection()!.addRange(range)
-+      expect(captureResponseSelection()).toBeNull()
-+      root.remove()
++const disposers: (() => void)[] = []
++
++function mountComposer(target: string, hidden = false) {
++  const surface = document.createElement('div')
++  surface.dataset.composerTarget = target
++  surface.toggleAttribute('data-pane-hidden', hidden)
++  const input = document.createElement('div')
++  input.dataset.slot = RICH_INPUT_SLOT
++  input.contentEditable = 'true'
++  input.tabIndex = 0
++  surface.append(input)
++  document.body.append(surface)
++  disposers.push(onComposerFocusRequest(request => {
++    if (request.target === target) {
++      focusComposerInput(input)
 +    }
++  }))
 +
-+    window.getSelection()!.removeAllRanges()
++  return input
++}
++
++beforeEach(() => {
++  vi.useFakeTimers()
++  setActiveSessionId(null)
++  $selectedStoredSessionId.set('shared-session')
++  markActiveComposer('main')
++})
++
++afterEach(() => {
++  disposers.splice(0).forEach(dispose => dispose())
++  document.body.replaceChildren()
++  $selectedStoredSessionId.set(null)
++  markActiveComposer('main')
++  vi.useRealTimers()
++})
++
++describe('plugin composer focus restoration', () => {
++  it('focuses the visible tile when its session is also selected in a hidden primary', () => {
++    mountComposer('main', true)
++    const visible = mountComposer('tile:shared-session')
++
++    composerHost.focus('shared-session')
++    vi.runOnlyPendingTimers()
++
++    expect(document.activeElement).toBe(visible)
 +  })
-+  it('keeps three pairs in one native chip and round-trips every character', () => {
-+    const data = {
-+      type: 'response-annotations' as const,
-+      version: 1 as const,
-+      label: '3 annotations',
-+      annotations: [
-+        { id: '1', text: 'First passage', comment: 'First comment' },
-+        { id: '2', text: '```js\n  call(`x`);\n```', comment: 'two\nlines' },
-+        { id: '3', text: '@file:/private/example <script> /command', comment: 'Keep this literal' }
-+      ]
-+    }
 +
-+    const token = formatResponseAnnotations(data)
-+    const matches = [...token.matchAll(referenceRe())]
-+    expect(matches).toHaveLength(1)
-+    expect(matches[0]![1]).toBe('annotation')
-+    const raw = matches[0]![2]!
-+    expect(parseResponseAnnotations(raw.slice(1, -1))).toEqual(data)
-+    const editor = document.createElement('div')
-+    editor.innerHTML = 'Existing reply ' + refChipHtml('annotation', raw)
-+    expect(editor.textContent).toBe('Existing reply 3 annotations')
-+    expect(composerPlainText(editor).trimEnd()).toBe('Existing reply ' + token)
++  it('keeps an explicitly focused tile when the same session is visible in both surfaces', () => {
++    mountComposer('main')
++    const tile = mountComposer('tile:shared-session')
++    markActiveComposer('tile:shared-session')
++
++    composerHost.focus('shared-session')
++    vi.runOnlyPendingTimers()
++
++    expect(document.activeElement).toBe(tile)
 +  })
 +
-+  it('refuses invalid, duplicate or oversized entries rather than hiding data', () => {
-+    for (const value of [
-+      '{}',
-+      'not json',
-+      JSON.stringify({ type: 'response-annotations', version: 1, label: '1', annotations: [] })
-+    ]) {
-+      expect(parseResponseAnnotations(value)).toBeNull()
-+    }
++  it('restores the normal primary when the same-session tile is hidden', () => {
++    const primary = mountComposer('main')
++    mountComposer('tile:shared-session', true)
++    markActiveComposer('tile:shared-session')
 +
-+    expect(() =>
-+      formatResponseAnnotations({
-+        type: 'response-annotations',
-+        version: 1,
-+        label: '2 annotations',
-+        annotations: [
-+          { id: 'same', text: 'one', comment: '' },
-+          { id: 'same', text: 'two', comment: '' }
-+        ]
-+      })
-+    ).toThrow()
++    composerHost.focus('shared-session')
++    vi.runOnlyPendingTimers()
++
++    expect(document.activeElement).toBe(primary)
 +  })
-+  it('round-trips 1,000 annotations as one native chip and rejects oversized batches intact', () => {
-+    const data = {
-+      type: 'response-annotations' as const,
-+      version: 1 as const,
-+      label: '1000 annotations',
-+      annotations: Array.from({ length: 1000 }, (_, index) => ({
-+        id: String(index),
-+        text: 'Selected passage ' + index,
-+        comment: 'Comment ' + index
-+      }))
-+    }
-+    const token = formatResponseAnnotations(data)
-+    const matches = [...token.matchAll(referenceRe())]
-+    expect(matches).toHaveLength(1)
-+    const raw = matches[0]![2]!
-+    expect(parseResponseAnnotations(raw.slice(1, -1))).toEqual(data)
-+    const editor = document.createElement('div')
-+    editor.innerHTML = refChipHtml('annotation', raw)
-+    expect(editor.textContent).toBe('1000 annotations')
-+    expect(composerPlainText(editor).trimEnd()).toBe(token)
-+    expect(() =>
-+      formatResponseAnnotations({
-+        ...data,
-+        annotations: [...data.annotations, { id: '1001', text: 'More', comment: '' }]
-+      })
-+    ).toThrow()
-+    expect(() =>
-+      formatResponseAnnotations({
-+        ...data,
-+        annotations: data.annotations.map(item => ({ ...item, comment: 'x'.repeat(600) }))
-+      })
-+    ).toThrow()
-+    expect(data.annotations).toHaveLength(1000)
++
++  it('never sends an addressed session focus request to an unrelated active tile', () => {
++    const primary = mountComposer('main')
++    mountComposer('tile:other-session')
++    markActiveComposer('tile:other-session')
++
++    composerHost.focus('shared-session')
++    vi.runOnlyPendingTimers()
++
++    expect(document.activeElement).toBe(primary)
 +  })
 +})
-diff --git a/apps/desktop/src/lib/composer-dictation.ts b/apps/desktop/src/lib/composer-dictation.ts
-new file mode 100644
-index 0000000000..0e4c590468
---- /dev/null
-+++ b/apps/desktop/src/lib/composer-dictation.ts
-@@ -0,0 +1,29 @@
-+import type { ComposerTarget } from '@/app/chat/composer/focus'
+diff --git a/apps/desktop/src/sdk/composer.ts b/apps/desktop/src/sdk/composer.ts
+index 565db36838c541199b323f69f99a33b9f4833c8e..cdc44a9d568be3c3b29949201267eb2b097317bb 100644
+--- a/apps/desktop/src/sdk/composer.ts
++++ b/apps/desktop/src/sdk/composer.ts
+@@ -1,12 +1,20 @@
+ import {
+   type ComposerInsertMode,
+   type ComposerTarget,
++  getActiveComposer,
+   requestComposerFocus,
+   requestComposerGetDraft,
+   requestComposerInsertAcked,
+   requestComposerSetDraft,
+   requestComposerSubmit
+ } from '@/app/chat/composer/focus'
++import { type DictationRecipient, startComposerDictation } from '@/lib/composer-dictation'
++import {
++  captureResponseSelection,
++  formatResponseAnnotations,
++  onResponseAnnotationsOpen,
++  parseResponseAnnotations
++} from '@/lib/response-annotations'
+ import { freshDraftScope, takeSessionDraft } from '@/store/composer'
+ import { $activeSessionId, $selectedStoredSessionId } from '@/store/session'
+ import { $sessionStates } from '@/store/session-states'
+@@ -48,8 +56,14 @@ const resolveComposerAddress = (
+   // drops the request (fail-closed) rather than leaking it into whatever
+   // session the primary is displaying.
+   const shownInPrimary = ids.includes($selectedStoredSessionId.get() ?? '')
+-
+-  return { ids, stored, target: shownInPrimary ? 'main' : (`tile:${stored}` as ComposerTarget) }
++  const tileTarget = `tile:${stored}` as ComposerTarget
++  // A selected primary can remain mounted behind another route while this
++  // same session is visible in a tile. Honor that exact active tile; routing
++  // to the hidden primary would silently drop focus restoration. The shared
++  // bus already heals hidden active targets to the visible chat surface.
++  const target = !shownInPrimary || getActiveComposer() === tileTarget ? tileTarget : 'main'
 +
-+export type DictationStatus = 'starting' | 'recording' | 'transcribing' | 'idle'
++  return { ids, stored, target }
+ }
+ 
+ /** THE composer draft surface (#116305 item 1): read, write, insert, and
+@@ -63,6 +77,25 @@ const resolveComposerAddress = (
+  *  resolves to no live surface returns `null`/`false` (or is dropped, for
+  *  `focus`) — it never broadcasts and never throws. */
+ export const composerHost = {
++  /** User-initiated dictation into a plugin field using the addressed composer's STT settings.
++   * Stop transcribes; cancel discards audio. The caller must cancel when its field closes.
++   * Returns null if the surface is absent, busy recording, or disabled. Never submits. */
++  dictation: {
++    version: 1,
++    start: (sessionId: null | string, recipient: DictationRecipient) => {
++      const { target } = resolveComposerAddress(sessionId)
 +
-+export interface DictationRecipient {
-+  onTranscript: (text: string) => void
-+  onState: (status: DictationStatus) => void
-+}
-+
-+export interface DictationHandle {
-+  stop: () => void
-+  cancel: () => void
-+}
-+
-+type StartDictation = (recipient: DictationRecipient) => DictationHandle | null
-+const surfaces = new Map<ComposerTarget, StartDictation>()
-+
-+/** One visible composer owns capture, provider configuration and microphone lifecycle. */
-+export function registerComposerDictation(target: ComposerTarget, start: StartDictation): () => void {
-+  surfaces.set(target, start)
-+
-+  return () => {
-+    if (surfaces.get(target) === start) {surfaces.delete(target)}
-+  }
-+}
-+
-+export function startComposerDictation(target: ComposerTarget, recipient: DictationRecipient): DictationHandle | null {
-+  return surfaces.get(target)?.(recipient) ?? null
-+}
-diff --git a/apps/desktop/src/app/chat/composer/hooks/use-plugin-dictation.ts b/apps/desktop/src/app/chat/composer/hooks/use-plugin-dictation.ts
-new file mode 100644
-index 0000000000..0052dcdc49
---- /dev/null
-+++ b/apps/desktop/src/app/chat/composer/hooks/use-plugin-dictation.ts
-@@ -0,0 +1,68 @@
-+import { useLayoutEffect, useRef } from 'react'
-+
-+import { type DictationHandle, registerComposerDictation } from '@/lib/composer-dictation'
-+
-+import type { ComposerTarget } from '../focus'
-+import { useComposerScope } from '../scope'
-+
-+import type { useVoiceRecorder } from './use-voice-recorder'
-+
-+interface Options {
-+  target: ComposerTarget
-+  sessionId: string | null | undefined
-+  disabled: boolean
-+  recorder: ReturnType<typeof useVoiceRecorder>
-+}
-+
-+/** Routes a plugin comment through the existing recorder without writing into the chat draft. */
-+export function usePluginDictation(options: Options): void {
-+  const latest = useRef(options)
-+  latest.current = options
-+  const { connectionId, profile } = useComposerScope()
-+
-+  useLayoutEffect(() => {
-+    let active: DictationHandle | null = null
-+
-+    const unregister = registerComposerDictation(options.target, recipient => {
-+      const current = latest.current
-+
-+      if (active || current.disabled || current.recorder.voiceStatus !== 'idle') {return null}
-+
-+      const recorder = current.recorder
-+
-+      const handle: DictationHandle = {
-+        stop: () => {
-+          if (active === handle) {void recorder.stop()}
-+        },
-+        cancel: () => {
-+          if (active !== handle) {return}
-+          active = null
-+          recorder.cancel()
-+          recipient.onState('idle')
-+        }
-+      }
-+
-+      active = handle
-+      recipient.onState('starting')
-+      void recorder.start({
-+        focusInput: () => undefined,
-+        onTranscript: text => {
-+          if (active === handle) {recipient.onTranscript(text)}
-+        },
-+        onState: status => {
-+          if (active !== handle) {return}
-+
-+          if (status === 'idle') {active = null}
-+          recipient.onState(status)
-+        }
-+      })
-+
-+      return handle
-+    })
-+
-+    return () => {
-+      unregister()
-+      active?.cancel()
++      return target === null ? null : startComposerDictation(target === 'active' ? getActiveComposer() : target, recipient)
 +    }
-+  }, [options.target, options.sessionId, connectionId, profile])
++  },
++  /** Self-contained annotation chips; feature-detect this on older desktops. */
++  annotations: {
++    version: 1,
++    captureSelection: captureResponseSelection,
++    format: formatResponseAnnotations,
++    parse: parseResponseAnnotations,
++    onOpen: onResponseAnnotationsOpen
++  },
+   /** The live draft text of one composer, or null when nothing holds it.
+    *  Mounted surfaces answer with their in-DOM text (current, incl.
+    *  unsaved keystrokes); an unmounted session falls back to its debounced
+diff --git a/apps/desktop/src/styles.css b/apps/desktop/src/styles.css
+index 100d2c6c6f66d97258cb796a8809144c78b9042b..8399bd74a5c85fabcac96d0099237fa50e762d28 100644
+--- a/apps/desktop/src/styles.css
++++ b/apps/desktop/src/styles.css
+@@ -4267,3 +4267,67 @@ html[data-hermes-desktop-host='browser'] [data-slot='sidebar-container'] {
+   background: none;
+   color: var(--err-ink);
+ }
++
++/* Response annotations are attachments inside the composer, with one shared preview. */
++.ref[data-ref='annotation'] {
++  display: inline-flex;
++  align-items: center;
++  gap: 0.35rem;
++  max-width: 100%;
++  margin-block: 0.25rem 0.5rem;
++  padding: 0.35rem 0.55rem;
++  border: 1px solid var(--ui-stroke-secondary);
++  border-radius: 0.65rem;
++  color: var(--ui-text-primary);
++  background: var(--ui-bg-elevated);
++  font: inherit;
++  line-height: 1.35;
++  white-space: nowrap;
++  cursor: pointer;
++  user-select: none;
++  text-decoration: none;
 +}
-diff --git a/apps/desktop/src/app/chat/composer/hooks/use-plugin-dictation.test.tsx b/apps/desktop/src/app/chat/composer/hooks/use-plugin-dictation.test.tsx
-new file mode 100644
-index 0000000000..52a182a126
---- /dev/null
-+++ b/apps/desktop/src/app/chat/composer/hooks/use-plugin-dictation.test.tsx
-@@ -0,0 +1,83 @@
-+import { act, cleanup, renderHook } from '@testing-library/react'
-+import { afterEach, describe, expect, it, vi } from 'vitest'
-+
-+import { type DictationHandle, startComposerDictation } from '@/lib/composer-dictation'
-+
-+import { usePluginDictation } from './use-plugin-dictation'
-+import type { DictationDestination, useVoiceRecorder } from './use-voice-recorder'
-+
-+vi.mock('../scope', () => ({ useComposerScope: () => ({ connectionId: 'local', profile: 'test' }) }))
-+afterEach(cleanup)
-+
-+describe('plugin dictation routing', () => {
-+  it('claims exactly the addressed recorder and drops callbacks after a session switch', () => {
-+    let destination: DictationDestination | undefined
-+
-+    const recorder = {
-+      voiceStatus: 'idle',
-+      start: vi.fn(async (value: DictationDestination) => {
-+        destination = value
-+      }),
-+      stop: vi.fn(async () => undefined),
-+      cancel: vi.fn()
-+    } as unknown as ReturnType<typeof useVoiceRecorder>
-+
-+    const recipient = { onTranscript: vi.fn(), onState: vi.fn() }
-+
-+    const hook = renderHook(
-+      ({ sessionId }) => usePluginDictation({ target: 'main', sessionId, disabled: false, recorder }),
-+      { initialProps: { sessionId: 'a' } }
-+    )
-+
-+    expect(startComposerDictation('tile:other', recipient)).toBeNull()
-+    let handle: DictationHandle | null = null
-+    act(() => {
-+      handle = startComposerDictation('main', recipient)
-+    })
-+    expect(handle).not.toBeNull()
-+    expect(startComposerDictation('main', recipient)).toBeNull()
-+    act(() => {
-+      destination!.onTranscript('Comment only')
-+      handle!.stop()
-+    })
-+    expect(recipient.onTranscript).toHaveBeenCalledWith('Comment only')
-+    expect(recorder.stop).toHaveBeenCalledOnce()
-+    hook.rerender({ sessionId: 'b' })
-+    expect(recorder.cancel).toHaveBeenCalledOnce()
-+    destination!.onTranscript('Late result')
-+    handle!.stop()
-+    expect(recipient.onTranscript).toHaveBeenCalledTimes(1)
-+    expect(recorder.stop).toHaveBeenCalledOnce()
-+    hook.unmount()
-+    expect(startComposerDictation('main', recipient)).toBeNull()
-+  })
-+
-+  it('rejects a disabled or occupied recorder and allows a new take after completion', () => {
-+    let destination: DictationDestination | undefined
-+
-+    const recorder = {
-+      voiceStatus: 'recording',
-+      start: vi.fn(async (value: DictationDestination) => {
-+        destination = value
-+      }),
-+      stop: vi.fn(),
-+      cancel: vi.fn()
-+    } as unknown as ReturnType<typeof useVoiceRecorder>
-+
-+    const recipient = { onTranscript: vi.fn(), onState: vi.fn() }
-+
-+    const hook = renderHook(
-+      ({ disabled }) => usePluginDictation({ target: 'main', sessionId: 'a', disabled, recorder }),
-+      { initialProps: { disabled: false } }
-+    )
-+
-+    expect(startComposerDictation('main', recipient)).toBeNull()
-+    recorder.voiceStatus = 'idle'
-+    hook.rerender({ disabled: true })
-+    expect(startComposerDictation('main', recipient)).toBeNull()
-+    hook.rerender({ disabled: false })
-+    expect(startComposerDictation('main', recipient)).not.toBeNull()
-+    act(() => destination!.onState?.('idle'))
-+    expect(startComposerDictation('main', recipient)).not.toBeNull()
-+  })
-+})
-diff --git a/apps/desktop/src/components/assistant-ui/annotation-chip-interaction.test.tsx b/apps/desktop/src/components/assistant-ui/annotation-chip-interaction.test.tsx
-new file mode 100644
-index 0000000000..696f5ee56a
---- /dev/null
-+++ b/apps/desktop/src/components/assistant-ui/annotation-chip-interaction.test.tsx
-@@ -0,0 +1,30 @@
-+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-+import { afterEach, expect, it, vi } from 'vitest'
-+
-+import { formatResponseAnnotations, onResponseAnnotationsOpen } from '@/lib/response-annotations'
-+
-+import { DirectiveContent } from './directive-text'
-+
-+afterEach(cleanup)
-+
-+it('opens a sent annotation preview without activating the containing message editor', () => {
-+  const edit = vi.fn()
-+  const prepareEdit = vi.fn()
-+  const preview = vi.fn()
-+  const unsubscribe = onResponseAnnotationsOpen(preview)
-+
-+  const text = formatResponseAnnotations({
-+    type: 'response-annotations', version: 1, label: '1 annotation',
-+    annotations: [{ id: 'feedback', text: 'Launch', comment: 'Make a checklist.' }]
-+  })
-+
-+  try {
-+    render(<div onClick={edit} onPointerDown={prepareEdit}><DirectiveContent text={text} /></div>)
-+    const chip = screen.getByRole('button', { name: '1 annotation' })
-+    fireEvent.pointerDown(chip)
-+    fireEvent.click(chip)
-+    expect(preview).toHaveBeenCalledWith(expect.objectContaining({ editable: false }))
-+    expect(prepareEdit).not.toHaveBeenCalled()
-+    expect(edit).not.toHaveBeenCalled()
-+  } finally { unsubscribe() }
-+})
++.ref[data-ref='annotation']:hover {
++  background: var(--chrome-action-hover);
++  text-decoration: none;
++}
++.ref[data-ref='annotation']:focus-visible,
++[data-annotation-open]:focus-visible,
++[data-annotation-remove]:focus-visible {
++  outline: 2px solid var(--ui-accent);
++  outline-offset: 2px;
++}
++.ref[data-ref='annotation'] > svg {
++  margin: 0;
++}
++[data-annotation-open] {
++  display: inline-flex;
++  align-items: center;
++  gap: inherit;
++  border-radius: 0.15rem;
++}
++[data-annotation-open] > svg {
++  display: inline-block;
++  width: 0.875em;
++  height: 0.875em;
++  opacity: 0.8;
++}
++[data-annotation-remove] {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  width: 1.25rem;
++  height: 1.25rem;
++  margin-inline-start: 0.15rem;
++  border-radius: 50%;
++  color: var(--ui-text-secondary);
++  cursor: pointer;
++}
++[data-annotation-remove]:hover {
++  background: var(--ui-stroke-secondary);
++  color: var(--ui-text-primary);
++}
++[data-annotation-remove] svg {
++  width: 0.875rem;
++  height: 0.875rem;
++}

@@ -1,8 +1,19 @@
 # Proposed native response-annotations API
 
-For the hackathon preview, use **Hermes v0.23.0**, commit `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`, with `response-annotations-v0.23.0.patch`. This complete 16-file patch includes compact-preview events and optional dictation. Apply it in a separate checkout with `git apply --check`, then `git apply`, and follow Hermes desktop build instructions. Use a disposable Hermes home for testing.
+For the hackathon preview, use **Hermes v0.23.0**, commit `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`, with `response-annotations-v0.23.0.patch`. This complete 17-file patch includes compact previews, optional dictation, keyboard-accessible chip controls, and composer focus routing. Apply it in a separate checkout with `git apply --check`, then `git apply`, and follow Hermes desktop build instructions. Use a disposable Hermes home for testing.
 
-The older base below is retained for the original upstream proposal.
+In a separate checkout at that exact v0.23.0 commit:
+
+```sh
+git apply --check /absolute/path/to/response-annotations-v0.23.0.patch
+git apply /absolute/path/to/response-annotations-v0.23.0.patch
+```
+
+If the check fails, stop and review the differences. Follow that checkout's documented desktop build workflow; this does not install or replace an application automatically.
+
+## Historical upstream-proposal base
+
+The older base below is retained for the original upstream proposal. Do not use its patch on v0.23.0.
 
 This developer patch adds a generic attachment reference and a public selection capture method to Hermes Desktop. It is not run by the plugin installer and is not a substitute for upstream acceptance.
 
@@ -41,3 +52,7 @@ The plugin feature-detects this optional capability and keeps typed annotations 
 ### Sent-message interaction
 
 The review candidate also prevents a sent annotation chip from activating the enclosing message editor. Its read-only preview remains available through click, hover, and focus. The included regression test covers both pointer-down and click propagation.
+
+### Composer focus and keyboard controls
+
+Native draft chips use separate open and remove buttons. When the addressed chat is visible in a split tile, the SDK focus method targets that tile instead of a hidden primary composer. Regression tests cover both chip creation paths, the visible-tile cases, normal primary focus, and isolation from unrelated tiles. The latest patch passed automated tests, a production build, and packaging. A packaged macOS check with the candidate plugin loaded manually into an existing profile confirmed that split-pane review stayed open during background carousel rotation and keyboard Close restored typing focus to the correct tile, including when the main pane had no chat composer. This does not establish a fresh-install or cross-platform result.

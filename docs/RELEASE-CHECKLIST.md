@@ -11,13 +11,14 @@ This checklist is for a future production-ready release. No production-ready rel
 
 ## Plugin checks (on the exact commit to release)
 
-- [ ] `npm --prefix tests ci && npm --prefix tests test`: all tests pass (49 in the current candidate).
+- [ ] `npm --prefix tests ci && npm --prefix tests test`: all tests pass (64 in the current candidate).
+- [ ] Focused native tests pass against the final patch (229 distinct tests in 14 files in the current candidate), followed by a fresh build and packaged-runtime check. The current patched macOS checks passed with an existing-profile plugin overlay; repeat on the exact stable release candidate.
 - [ ] `hermes plugins validate .` passes: manifest, security scan, desktop SDK surface, no core override.
 - [ ] `tests/native.mjs` passes against a disposable Hermes home.
 - [ ] Fresh-profile fixture: install with `--ref <full sha>`, then use the visible Desktop switch to enable, disable, and re-enable the plugin. Confirm add, edit, and remove keep ordinary text and whitespace exact, and that a saved draft survives an app restart and a backend restart with a successful `session.resume`.
 - [ ] Stock Hermes without the API shows the compatibility notice and changes nothing.
 - [ ] Light and dark screenshots are refreshed from synthetic fixtures only.
-- [ ] Official Hermes updater verification in a fully isolated environment (separate HOME, package manager, venv, shims, and fleet): confirm the plugin survives an official update path. **Blocking release check** — do not release while unverified.
+- [ ] Official Hermes updater verification in a fully isolated environment (disposable Hermes data root, isolated package manager and runtime state): confirm the plugin survives an official update path. **Blocking release check** — do not release while unverified.
 
 ## Metadata and catalog
 

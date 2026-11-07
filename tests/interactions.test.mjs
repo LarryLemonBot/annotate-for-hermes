@@ -123,9 +123,12 @@ describe('compact annotation interactions',()=>{
     for(const top of [-20,10]){
       const p=document.createElement('p');p.textContent='Passage '+top;document.body.append(p)
       const range=document.createRange();range.selectNodeContents(p)
-      range.getClientRects=()=>[{left:30,right:180,top,bottom:top+15}]
+      let liveTop=100
+      range.getClientRects=()=>[{left:30,right:180,top:liveTop,bottom:liveTop+15}]
       await save({...captured(p.textContent),range})
+      liveTop=top
     }
+    controller.positionMarkers()
     const [hidden,visible]=[...controller.markers.values()]
     expect(hidden.hidden).toBe(true)
     expect(visible.hidden).toBe(false)

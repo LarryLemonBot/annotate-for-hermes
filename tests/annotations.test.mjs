@@ -187,9 +187,9 @@ describe('selection popup polish',()=>{
   })
   it('preserves an unfinished comment when editing a different saved annotation',async()=>{
     controller.edit(capture('Saved passage'));await comment('Saved comment')
+    const saved=attachment()
     controller.edit(capture('Unfinished passage'));type('Keep me')
-    await controller.open({value:attachment().value,editable:true})
-    document.querySelector('[aria-label="Edit annotation 1"]').click()
+    controller.edit(capture('Saved passage'),saved.data.annotations[0],saved)
     expect(controller.panel.getAttribute('aria-label')).toBe('Unfinished comment')
     document.querySelector('[aria-label="Resume the unsaved comment"]').click()
     expect(document.querySelector('.afh-quote').textContent).toBe('Unfinished passage')

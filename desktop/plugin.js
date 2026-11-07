@@ -129,6 +129,9 @@ const styles = `
 .afh-status{position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 ::highlight(annotate-for-hermes){background:color-mix(in srgb,var(--ui-accent,#2563eb) 9%,transparent);text-decoration:underline dashed;text-decoration-thickness:1px;text-underline-offset:2px;text-decoration-color:color-mix(in srgb,var(--ui-accent,#2563eb) 40%,transparent)}
 .afh-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip-path:inset(50%);white-space:nowrap!important;border:0!important}
+[data-afh] .afh-close{position:absolute;right:8px;top:8px}
+[data-afh] .afh-close:not(:focus-visible){width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%)}
+[data-afh] .afh-close:focus-visible{background:var(--afh-bg);z-index:1}
 [data-afh="editor"]:has(.afh-comment-bar){width:360px;padding:8px;border-radius:28px;overflow:visible}
 .afh-dictate[aria-pressed="true"]{color:var(--afh-accent);background:var(--afh-hover)}
 .afh-dictate .afh-icon{width:18px;height:18px}
@@ -206,7 +209,10 @@ export class AnnotateController {
     listen(document, 'selectionchange', () => {
       if (this.toolbar && !this.api.captureSelection()) { this.toolbar.remove(); this.toolbar = null }
     })
-    listen(document, 'keyup', event => { if (event.key.startsWith('Arrow') && event.shiftKey) this.offer() })
+    listen(document, 'keyup', event => {
+      if (event.target.closest?.(ROOT) || event.target.closest?.('input,textarea,[contenteditable="true"]')) return
+      if (event.shiftKey && /^(Arrow(Left|Right|Up|Down)|Home|End|PageUp|PageDown)$/.test(event.key)) this.offer()
+    })
     listen(document, 'keydown', event => {
       if (event.key === 'Escape' && (this.panel || this.toolbar)) {
         event.stopPropagation()
@@ -222,7 +228,12 @@ export class AnnotateController {
       if (event.target.closest?.(ROOT)) return
       this.toolbar?.remove(); this.toolbar = null
       this.positionMarkers()
-      if (this.panel?.dataset.afh === 'review') this.close(false)
+      if (this.panel?.dataset.afh === 'review') {
+        const source = this.reviewSource
+        // A carousel or another split pane can scroll without moving this chip.
+        // Dismiss only when its own scroll ancestors move (or the source is gone).
+        if (!source || !source.isConnected || event.target === window || event.target.contains?.(source)) this.close(false)
+      } else this.position()
     }, true)
     // Watch only the passages that hold a tracked highlight (the parent of each range's element,
     // so a replaced paragraph is noticed), never the whole document, and only while one exists.
@@ -231,11 +242,16 @@ export class AnnotateController {
       if (records.some(record => !own(record.target) && (record.type !== 'childList' || [...record.addedNodes, ...record.removedNodes].some(node => !own(node))))) this.refreshHighlights()
     })
     this.disposers.push(() => this.observer.disconnect())
+    let observedScope = this.scope()
     for (const atom of [this.host.state.focusedStoredSessionId, this.host.state.focusedSessionId, this.host.state.focusedSessionOwner, this.host.state.focusedSessionProfile, this.host.state.connectionId, this.host.state.profile]) {
       if (atom?.listen) this.disposers.push(atom.listen(() => {
+        const scope = this.scope()
+        // Host refreshes can publish a new owner object for the same chat.
+        // Only a real ownership change may dismiss or restore its annotation UI.
+        if (scope === observedScope) return
+        observedScope = scope
         this.close(false)
         this.refreshHighlights()
-        const scope = this.scope()
         if (scope == null || this.busy) return
         const pending = this.pending.get(scope)
         if (pending) this.edit(pending)
@@ -284,7 +300,29 @@ export class AnnotateController {
     element.style.top = `${Math.max(12, Math.min(top, window.innerHeight - box.height - 12))}px`
   }
 
-  position() { this.place(this.panel, this.anchor) }
+  position() {
+    const range = this.editorEntry?.range
+    if (range?.getClientRects) {
+      const rects = range.getClientRects()
+      const rect = rects[rects.length - 1]
+      const ancestor = range.commonAncestorContainer
+      const element = ancestor.nodeType === 1 ? ancestor : ancestor.parentElement
+      let visible = ancestor.isConnected && rect && rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth
+      if (visible && document.elementsFromPoint) {
+        const x = Math.min(window.innerWidth - 1, Math.max(0, rect.right - 1))
+        const y = Math.min(window.innerHeight - 1, Math.max(0, (rect.top + rect.bottom) / 2))
+        const hit = document.elementsFromPoint(x, y).find(target => !target.closest?.(ROOT))
+        visible = hit && (element === hit || element?.contains(hit))
+      }
+      if (!visible) {
+        this.close(false)
+        this.status.textContent = 'Your comment is kept. Select a passage to resume editing.'
+        return
+      }
+      this.anchor = rect
+    }
+    this.place(this.panel, this.anchor)
+  }
 
   close(focus) {
     const session = this.owner
@@ -296,6 +334,8 @@ export class AnnotateController {
     this.panel?.remove()
     this.toolbar?.remove()
     this.panel = this.toolbar = null
+    this.editorEntry = null
+    this.reviewSource = null
     if (focus && session === this.session()) this.host.composer.focus(session)
   }
 
@@ -311,6 +351,7 @@ export class AnnotateController {
     this.owner = captured.session
     this.anchor = captured.anchor
     const entry = { ...captured, scope, existing, attachment, comment: captured.comment ?? existing?.comment ?? '' }
+    this.editorEntry = entry
     this.pending.set(entry.scope, entry)
     this.panel = this.surface('editor')
     this.panel.setAttribute('role', 'dialog')
@@ -318,8 +359,8 @@ export class AnnotateController {
     const panel = this.panel
     const header = node('div', 'afh-header')
     const cancel = button('Cancel annotation', 'close', () => { if (!this.busy) panel.escape?.() })
-    cancel.tabIndex = -1
-    header.append(node('span', 'afh-title', existing ? 'Edit annotation' : 'Add annotation'), cancel)
+    cancel.classList.add('afh-close')
+    header.append(node('span', 'afh-title', existing ? 'Edit annotation' : 'Add annotation'))
     const selectedLabel = node('div', 'afh-selected-label', 'Selected text')
     selectedLabel.id = 'afh-selected-label'
     const quote = node('blockquote', 'afh-quote', captured.text)
@@ -382,7 +423,7 @@ export class AnnotateController {
     const bar = node('div', 'afh-comment-bar')
     const mic = this.dictationControl(panel, input, save, error, entry)
     bar.append(input, mic, save)
-    this.panel.append(header, selectedLabel, quote, label, bar, footer, error)
+    this.panel.append(header, cancel, selectedLabel, quote, label, bar, footer, error)
     panel.escape = () => {
       if (this.busy) return
       if (panel.dictating) { panel.cancelDictation(); return }
@@ -421,7 +462,7 @@ export class AnnotateController {
   conflict(stale, next) {
     this.close(false)
     this.owner = stale.session
-    this.anchor = next.captured.anchor || stale.anchor
+    this.anchor = next.captured?.anchor || next.request?.anchor || stale.anchor
     const panel = this.panel = this.surface('editor')
     panel.setAttribute('role', 'dialog')
     panel.setAttribute('aria-label', 'Unfinished comment')
@@ -434,10 +475,12 @@ export class AnnotateController {
     const actions = node('div', 'afh-confirm-actions')
     const resume = button('Resume the unsaved comment', null, () => { this.close(false); this.edit(stale) }, 'afh-secondary')
     resume.textContent = 'Resume'
-    const discard = button('Discard it and annotate the new selection', null, () => {
+    const discardLabel = next.request?.remove ? 'Discard it and remove annotations' : next.request ? 'Discard it and review annotations' : 'Discard it and annotate the new selection'
+    const discard = button(discardLabel, null, () => {
       this.pending.delete(stale.scope)
       this.close(false)
-      this.edit(next.captured, next.existing, next.attachment)
+      if (next.request) void this.open(next.request)
+      else this.edit(next.captured, next.existing, next.attachment)
     }, 'afh-save')
     discard.textContent = 'Discard'
     actions.append(resume, discard)
@@ -582,12 +625,16 @@ export class AnnotateController {
     if (this.disposed || this.busy || this.scope() !== scope || generation !== this.openGeneration) return
     const attachment = readAttachments(draft, this.api).find(part => part.value === request.value)
     if (request.editable && !attachment) return
+    const pending = this.pending.get(scope)
+    if (!passive && pending?.comment?.trim()) return this.conflict(pending, { request })
     if (request.remove) {
       if (request.editable) await this.remove(session, attachment, null, scope)
       return
     }
+    const source = this.reviewSourceElement(request.anchor)
     this.close(false)
     this.owner = session
+    this.reviewSource = source
     this.preview = passive
     this.previewValue = request.value
     this.anchor = request.anchor || { left: 24, top: window.innerHeight - 180, bottom: window.innerHeight - 170 }
@@ -599,7 +646,9 @@ export class AnnotateController {
     this.panel.addEventListener('focusin', () => clearTimeout(this.previewTimer))
     this.panel.addEventListener('focusout', () => this.schedulePreviewClose())
     const header = node('div', 'afh-header')
-    header.append(node('span', 'afh-title', data.label), button('Close annotations', 'close', () => this.close(true)))
+    const close = button('Close annotations', 'close', () => this.close(true))
+    close.classList.add('afh-close')
+    header.append(node('span', 'afh-title', data.label))
     const list = node('ol', 'afh-items')
     data.annotations.forEach((item, index) => {
       const row = node('li', 'afh-item')
@@ -623,11 +672,22 @@ export class AnnotateController {
       list.append(row)
     })
     header.classList.add('afh-sr-only')
-    header.querySelector('button').tabIndex = -1
-    this.panel.append(header, list)
+    this.panel.append(header, close, list)
     this.position()
     this.panel.tabIndex = -1
     if (!passive) this.panel.focus({ preventScroll: true })
+  }
+
+  reviewSourceElement(anchor) {
+    if (anchor) {
+      const x = Math.min(window.innerWidth - 1, Math.max(0, anchor.left + (anchor.width || 2) / 2))
+      const y = Math.min(window.innerHeight - 1, Math.max(0, (anchor.top + anchor.bottom) / 2))
+      return document.elementsFromPoint?.(x, y).find(element => element !== document.body && element !== document.documentElement && !element.closest?.(ROOT)) || null
+    }
+    // Older sent-chip open requests omit geometry; keyboard/pointer activation
+    // still leaves the opener focused until the review takes focus.
+    const active = document.activeElement
+    return active && active !== document.body && active !== document.documentElement && !active.closest?.(ROOT) ? active : null
   }
 
   async remove(session, attachment, id, scope = this.scope()) {

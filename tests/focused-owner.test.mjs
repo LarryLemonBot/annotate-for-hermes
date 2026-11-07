@@ -107,3 +107,64 @@ describe('asynchronous owner checks during draft reads',()=>{
     } finally {controller.dispose()}
   })
 })
+
+describe('unchanged focused owner notifications',()=>{
+  function fixture(){
+    const {sdk,state,api}=createSdk()
+    let owner={connectionId:'tile-source',profile:'worker'}
+    let ownerListener
+    sdk.state.focusedSessionOwner={get:()=>owner,listen:fn=>{ownerListener=fn;return()=>{ownerListener=null}}}
+    const controller=new AnnotateController(sdk);controller.mount()
+    const value=JSON.stringify({type:'response-annotations',version:1,label:'1 annotation',annotations:[{id:'one',text:'Tile passage',comment:'Saved feedback'}]})
+    state.drafts.set('chat-a',api.format(JSON.parse(value)))
+    return {controller,sdk,state,value,refresh(next=owner){owner={...next};ownerListener()}}
+  }
+
+  it('keeps a clicked review focused during same-owner refresh but closes on an actual owner change',async()=>{
+    const {controller,state,value,refresh}=fixture()
+    try {
+      await controller.open({value,editable:true})
+      const review=controller.panel
+      expect(document.activeElement).toBe(review)
+      refresh()
+      expect(controller.panel).toBe(review)
+      expect(document.activeElement).toBe(review)
+      expect(state.writes).toBe(0)
+      refresh({connectionId:'different-source',profile:'worker'})
+      expect(controller.panel).toBeNull()
+      expect(state.writes).toBe(0)
+    } finally {controller.dispose()}
+  })
+
+  it('keeps the exact unfinished editor and caret when same-scope state emits again',()=>{
+    const {controller,state,refresh}=fixture()
+    try {
+      controller.edit({text:'Tile passage',session:'chat-a',scope:controller.scope(),anchor:{left:30,top:100,bottom:120}})
+      const input=document.querySelector('textarea')
+      input.value='Unfinished tile feedback';input.dispatchEvent(new Event('input'));input.setSelectionRange(2,7)
+      refresh()
+      // Other subscribed host atoms can emit while the stored chat and owner stay unchanged.
+      state.callbacks.forEach(listener=>listener())
+      expect(document.querySelector('textarea')).toBe(input)
+      expect(document.activeElement).toBe(input)
+      expect([input.selectionStart,input.selectionEnd]).toEqual([2,7])
+      expect(input.value).toBe('Unfinished tile feedback')
+      expect(state.writes).toBe(0)
+    } finally {controller.dispose()}
+  })
+
+  it('does not cancel an explicit review whose draft read overlaps an unchanged owner refresh',async()=>{
+    const {controller,sdk,state,value,refresh}=fixture()
+    try {
+      let finish
+      sdk.composer.getDraft=()=>new Promise(resolve=>{finish=resolve})
+      const opening=controller.open({value,editable:true})
+      refresh()
+      finish(state.drafts.get('chat-a'))
+      await opening
+      expect(controller.panel?.dataset.afh).toBe('review')
+      expect(document.activeElement).toBe(controller.panel)
+      expect(state.writes).toBe(0)
+    } finally {controller.dispose()}
+  })
+})
