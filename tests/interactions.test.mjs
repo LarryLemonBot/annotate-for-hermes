@@ -11,7 +11,7 @@ const save=async(text,comment='')=>{
 }
 const part=()=>readAttachments(state.drafts.get('chat-a'),api)[0]
 beforeEach(()=>{document.body.replaceChildren();({sdk,state,api}=createSdk());controller=new AnnotateController(sdk);controller.mount()})
-afterEach(()=>{controller.dispose();vi.useRealTimers()})
+afterEach(()=>{controller.dispose();vi.useRealTimers();vi.unstubAllGlobals()})
 describe('compact annotation interactions',()=>{
   it('allows an empty optional comment and adds only a draft attachment',async()=>{
     controller.edit(captured('Keep this selection'))
@@ -88,6 +88,48 @@ describe('compact annotation interactions',()=>{
     const attachment=part();await controller.remove('chat-a',attachment,attachment.data.annotations[0].id)
     expect([...controller.markers.values()].map(m=>m.textContent)).toEqual(['1'])
     controller.dispose();expect(document.querySelector('[data-afh="marker"]')).toBeNull()
+  })
+  it('hides a marker when its passage scrolls behind a sticky overlay and restores it when exposed',async()=>{
+    const p=document.createElement('p');p.textContent='Selected passage';document.body.append(p)
+    const overlay=document.createElement('aside');document.body.append(overlay)
+    const range=document.createRange();range.selectNodeContents(p)
+    range.getClientRects=()=>[{left:30,right:180,top:100,bottom:120}]
+    let covered=false
+    const hit=vi.fn(()=>covered?[overlay,p,document.body]:[p,document.body])
+    Object.defineProperty(document,'elementsFromPoint',{configurable:true,value:hit})
+    try {
+      await save({...captured(p.textContent),range})
+      const marker=[...controller.markers.values()][0]
+      expect(marker.hidden).toBe(false)
+      covered=true;document.dispatchEvent(new Event('scroll'))
+      expect(marker.hidden).toBe(true)
+      expect(part().data.annotations).toHaveLength(1)
+      covered=false;document.dispatchEvent(new Event('scroll'))
+      expect(marker.hidden).toBe(false)
+    } finally {delete document.elementsFromPoint}
+  })
+  it('hides existing markers when a collapsed or unrendered range has no geometry',async()=>{
+    const p=document.createElement('p');p.textContent='Selected passage';document.body.append(p)
+    const range=document.createRange();range.selectNodeContents(p)
+    let rects=[{left:30,right:180,top:100,bottom:120}]
+    range.getClientRects=()=>rects
+    await save({...captured(p.textContent),range})
+    const marker=[...controller.markers.values()][0]
+    expect(marker.hidden).toBe(false)
+    rects=[];controller.positionMarkers()
+    expect(marker.hidden).toBe(true)
+  })
+  it('keeps off-screen markers out of the visible collision layout',async()=>{
+    for(const top of [-20,10]){
+      const p=document.createElement('p');p.textContent='Passage '+top;document.body.append(p)
+      const range=document.createRange();range.selectNodeContents(p)
+      range.getClientRects=()=>[{left:30,right:180,top,bottom:top+15}]
+      await save({...captured(p.textContent),range})
+    }
+    const [hidden,visible]=[...controller.markers.values()]
+    expect(hidden.hidden).toBe(true)
+    expect(visible.hidden).toBe(false)
+    expect(visible.style.left).toBe('170px')
   })
 })
 

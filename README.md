@@ -44,7 +44,7 @@ npm --prefix tests test
 hermes plugins validate .
 ```
 
-The preview has 46 plugin tests and 28 focused native integration tests. A packaged macOS build has been exercised with a real Grok response, saved drafts, editing, previews, and microphone transcription. See [behavior and testing](docs/BEHAVIOR-AND-TESTING.md) for exact scope and historical fixture evidence.
+The current candidate has 49 plugin tests. A fresh Hermes v0.23.0 checkout with the included patch passed 129 focused integration tests and a production build. A packaged macOS build has been exercised with a real Grok response, saved drafts, editing, previews, and microphone transcription. See [behavior and testing](docs/BEHAVIOR-AND-TESTING.md) for exact scope and historical fixture evidence.
 
 Windows, Linux, screen readers, touch input, and the official updater path remain unverified. Native updates can replace the local SDK patch until it ships upstream. Saved attachment content persists through normal draft storage; unsaved comments and source markers do not survive an app reload. Model context limits still apply.
 

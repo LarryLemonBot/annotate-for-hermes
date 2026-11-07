@@ -687,7 +687,11 @@ export class AnnotateController {
       if (entry.scope !== this.scope() || !entry.number) continue
       const rects = entry.range.getClientRects?.()
       const rect = rects?.[rects.length - 1]
-      if (!rect) continue
+      if (!rect) {
+        const existing = this.markers.get(id)
+        if (existing) existing.hidden = true
+        continue
+      }
       let marker = this.markers.get(id)
       if (!marker) {
         marker = button(`Annotation ${entry.number}`, null, () => this.openMarker(id, undefined, marker), 'afh-marker')
@@ -702,7 +706,19 @@ export class AnnotateController {
       }
       marker.textContent = String(entry.number)
       marker.setAttribute('aria-label', `Annotation ${entry.number}`)
-      marker.hidden = rect.bottom < 0 || rect.top > window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth
+      marker.hidden = rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth
+      // A range can have viewport coordinates while its text is clipped by a
+      // scroll container or covered by sticky UI. Hit-test its visible endpoint,
+      // ignoring our own overlays, without relying on private transcript markup.
+      if (!marker.hidden && document.elementsFromPoint) {
+        const ancestor = entry.range.commonAncestorContainer
+        const element = ancestor.nodeType === 1 ? ancestor : ancestor.parentElement
+        const x = Math.min(window.innerWidth - 1, Math.max(0, rect.right - 1))
+        const y = Math.min(window.innerHeight - 1, Math.max(0, (rect.top + rect.bottom) / 2))
+        const hit = document.elementsFromPoint(x, y).find(target => !target.closest?.(ROOT))
+        marker.hidden = !hit || !(element === hit || element?.contains(hit))
+      }
+      if (marker.hidden) continue
       let left = Math.max(8, Math.min(rect.right - 10, window.innerWidth - 32))
       let top = Math.max(8, rect.top - 23)
       while (placed.some(p => Math.abs(p.left - left) < 27 && Math.abs(p.top - top) < 27)) {

@@ -1,6 +1,6 @@
 # Proposed native response-annotations API
 
-For the hackathon preview, use **Hermes v0.23.0**, commit `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`, with `response-annotations-v0.23.0.patch`. This complete 15-file patch includes compact-preview events and optional dictation. Apply it in a separate checkout with `git apply --check`, then `git apply`, and follow Hermes desktop build instructions. Use a disposable Hermes home for testing.
+For the hackathon preview, use **Hermes v0.23.0**, commit `2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19`, with `response-annotations-v0.23.0.patch`. This complete 16-file patch includes compact-preview events and optional dictation. Apply it in a separate checkout with `git apply --check`, then `git apply`, and follow Hermes desktop build instructions. Use a disposable Hermes home for testing.
 
 The older base below is retained for the original upstream proposal.
 
@@ -37,3 +37,7 @@ The patch carries Hermes source context under `HERMES-LICENSE`.
 The 0.23.0 review patch also proposes `host.composer.dictation.version === 1` and `start(sessionId, { onTranscript, onState })`. It returns `{ stop(), cancel() }`, or `null` when the addressed composer cannot claim the request. State is `starting`, `recording`, `transcribing`, or `idle`. Start only after an explicit user action; call `cancel()` when the recipient field closes. Stop transcribes using the addressed composer's existing STT path; cancel discards the take and suppresses late results. The host cancels on composer teardown or session/scope change. The recipient receives text without changing or submitting the chat draft. The microphone permissions, recording limits, provider configuration, and STT routing remain owned by Hermes.
 
 The plugin feature-detects this optional capability and keeps typed annotations available without it. Both API additions remain local review proposals; plugin catalog approval alone does not make them stable host APIs.
+
+### Sent-message interaction
+
+The review candidate also prevents a sent annotation chip from activating the enclosing message editor. Its read-only preview remains available through click, hover, and focus. The included regression test covers both pointer-down and click propagation.

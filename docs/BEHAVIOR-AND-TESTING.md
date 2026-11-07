@@ -49,7 +49,7 @@ hermes plugins validate .
 
 Current automated coverage in this repository:
 
-- **Unit (vitest):** 46 tests in three files covering selection popup polish, Escape Resume/Discard, duplicate handling, highlight cleanup, hover previews, dictation insertion and cancellation, draft preservation, host limit recovery copy, and the owner guards (owner switches, null owner, profile fallback, owner changes during asynchronous draft reads).
+- **Unit (vitest):** 49 tests in three files covering selection popup polish, Escape Resume/Discard, duplicate handling, highlight cleanup, hover previews, dictation insertion and cancellation, draft preservation, host limit recovery copy, and the owner guards (owner switches, null owner, profile fallback, owner changes during asynchronous draft reads). Marker regressions cover passages obscured by another surface, missing selection geometry, and off-screen markers affecting visible marker placement.
 - **`hermes plugins validate`:** manifest, security scan, desktop SDK surface, and no core override on the plugin tip.
 - **`tests/native.mjs`:** isolated development renderer through Hermes' performance-test connection. Set `HERMES_SOURCE_DIR`, `HERMES_TEST_HOME`, `HERMES_TEST_CDP_PORT`, and `HERMES_TEST_DEV_PORT`. The script refuses a desktop whose plugin root differs from the disposable test home. It checks three distinct passages, a single native composer chip, exact comments, edit/remove, draft preservation, reduced motion, and zero automatic submissions. It uses synthetic assistant messages and does not call a language model.
 
@@ -62,6 +62,18 @@ The screenshot below uses synthetic fixture messages, not personal chats.
 
 
 Detailed native and real-build results are local artifacts, excluded from Git. Runtime evidence is macOS (Apple silicon) only. Windows, Linux, screen-reader behavior, and touch input are untested.
+
+## Candidate verification: November 6, 2026
+
+A clean, separate checkout of Hermes v0.23.0 accepted `response-annotations-v0.23.0.patch` with `git apply --check`, then completed its production desktop build. Nine focused Vitest files passed 129 tests: `response-annotations`, `host-state`, composer `attachments`, `use-plugin-dictation`, `use-composer-submit`, `use-composer-actions`, plus sent annotation interactions, directive links, and transcript directives. These are host integration tests; they are additional to this repository's 49 plugin tests.
+
+The published preview at `71c688fd2dd26554e404b467b48bff6d2ecfdb32` also installed by exact SHA into a new disposable Hermes home. That verifies the installer path for that published revision; it is not evidence that stock Hermes provides the missing SDK or that an unpublished candidate can be installed from GitHub.
+
+The candidate was loaded in a packaged macOS Hermes development build. Three comments on a real project plan were staged, reviewed, and sent together. The real Grok response moved the gallery to phase two, added a 15-minute cleanup buffer, and supplied a five-step launch checklist. No website was built in this demonstration. This verifies the annotation workflow with that model and build, not every provider or future release.
+
+The test dependencies reported no known vulnerabilities in `npm audit` on this date. The plugin has no runtime npm dependencies. The GitHub Actions workflow runs the plugin unit suite on Node 22 and 26; a successful local run is not a claim that a remote workflow has run.
+
+The sent-annotation click regression was reproduced in a packaged build: its event reached the containing message editor. The updated native patch stops click and pointer-down propagation for annotation chips. A regression test reproduced the failure before the fix and passed afterward, alongside the existing directive tests. This last host fix has build and automated coverage; a fresh packaged-app verification is still required before production release.
 
 ## Update behavior and limits
 

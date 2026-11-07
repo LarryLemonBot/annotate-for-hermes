@@ -407,7 +407,7 @@ index 16969cb01e..23889e3318 100644
  }
  
 diff --git a/apps/desktop/src/components/assistant-ui/directive-text.tsx b/apps/desktop/src/components/assistant-ui/directive-text.tsx
-index 3af40619b8..4dbe4fd550 100644
+index 3af40619b8..e05c0237cd 100644
 --- a/apps/desktop/src/components/assistant-ui/directive-text.tsx
 +++ b/apps/desktop/src/components/assistant-ui/directive-text.tsx
 @@ -14,6 +14,7 @@ import { ExternalLink, openLink } from '@/lib/external-link'
@@ -461,16 +461,20 @@ index 3af40619b8..4dbe4fd550 100644
    }
  
    if (href) {
-@@ -625,7 +641,12 @@ const DirectiveChip: FC<{
+@@ -625,7 +641,16 @@ const DirectiveChip: FC<{
    }
  
    return activate ? (
 -    <button {...props} onClick={activate} type="button">
-+    <button {...props} onClick={activate} type="button"
++    <button {...props} onBlur={type === 'annotation' ? () => openResponseAnnotations({ value: id, editable: false, interaction: 'leave' }) : undefined} onClick={event => {
++      if (type === 'annotation') { event.stopPropagation() }
++      activate()
++    }}
++      onFocus={type === 'annotation' ? event => openResponseAnnotations({ value: id, editable: false, anchor: event.currentTarget.getBoundingClientRect(), interaction: 'focus' }) : undefined}
++      onPointerDown={type === 'annotation' ? event => event.stopPropagation() : undefined}
 +      onPointerEnter={type === 'annotation' ? event => openResponseAnnotations({ value: id, editable: false, anchor: event.currentTarget.getBoundingClientRect(), interaction: 'hover' }) : undefined}
 +      onPointerLeave={type === 'annotation' ? () => openResponseAnnotations({ value: id, editable: false, interaction: 'leave' }) : undefined}
-+      onFocus={type === 'annotation' ? event => openResponseAnnotations({ value: id, editable: false, anchor: event.currentTarget.getBoundingClientRect(), interaction: 'focus' }) : undefined}
-+      onBlur={type === 'annotation' ? () => openResponseAnnotations({ value: id, editable: false, interaction: 'leave' }) : undefined}
++      type="button"
 +    >
        {body}
      </button>
@@ -1071,4 +1075,40 @@ index 0000000000..52a182a126
 +    act(() => destination!.onState?.('idle'))
 +    expect(startComposerDictation('main', recipient)).not.toBeNull()
 +  })
++})
+diff --git a/apps/desktop/src/components/assistant-ui/annotation-chip-interaction.test.tsx b/apps/desktop/src/components/assistant-ui/annotation-chip-interaction.test.tsx
+new file mode 100644
+index 0000000000..696f5ee56a
+--- /dev/null
++++ b/apps/desktop/src/components/assistant-ui/annotation-chip-interaction.test.tsx
+@@ -0,0 +1,30 @@
++import { cleanup, fireEvent, render, screen } from '@testing-library/react'
++import { afterEach, expect, it, vi } from 'vitest'
++
++import { formatResponseAnnotations, onResponseAnnotationsOpen } from '@/lib/response-annotations'
++
++import { DirectiveContent } from './directive-text'
++
++afterEach(cleanup)
++
++it('opens a sent annotation preview without activating the containing message editor', () => {
++  const edit = vi.fn()
++  const prepareEdit = vi.fn()
++  const preview = vi.fn()
++  const unsubscribe = onResponseAnnotationsOpen(preview)
++
++  const text = formatResponseAnnotations({
++    type: 'response-annotations', version: 1, label: '1 annotation',
++    annotations: [{ id: 'feedback', text: 'Launch', comment: 'Make a checklist.' }]
++  })
++
++  try {
++    render(<div onClick={edit} onPointerDown={prepareEdit}><DirectiveContent text={text} /></div>)
++    const chip = screen.getByRole('button', { name: '1 annotation' })
++    fireEvent.pointerDown(chip)
++    fireEvent.click(chip)
++    expect(preview).toHaveBeenCalledWith(expect.objectContaining({ editable: false }))
++    expect(prepareEdit).not.toHaveBeenCalled()
++    expect(edit).not.toHaveBeenCalled()
++  } finally { unsubscribe() }
 +})
