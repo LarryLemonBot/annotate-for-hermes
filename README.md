@@ -18,7 +18,7 @@ Actual Hermes desktop capture with synthetic demo text; cropped to exclude accou
 - **Review in place.** Numbered markers connect feedback to the text. Hover or focus the attachment to preview your selections; edit or remove comments before sending.
 - **Send together.** One attachment keeps each passage paired with its comment. Adding an annotation never sends a message automatically.
 
-The interface uses Hermes theme colors and typography. It supports up to 1,000 annotations per attachment, subject to text-size and model-context limits.
+The interface uses Hermes theme colors and typography. It supports up to 100 annotations per run, subject to text-size and model-context limits.
 
 ## Try the development preview
 
