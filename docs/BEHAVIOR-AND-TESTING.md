@@ -39,7 +39,7 @@ The current local review base is Hermes v0.23.0, commit `2bd378ed1b8d6bf2192cb26
 
 Development dependencies are confined to `tests/`; installing the plugin does not require npm.
 
-The plugin is plain JavaScript with no runtime dependencies, Python hooks, model requests, external network calls, or background processes. All composer reads and writes use the proposed composer SDK. Selection eligibility belongs to the native API so the plugin does not depend on private transcript markup.
+The plugin is plain JavaScript with no runtime dependencies, Python hooks, model requests, external network calls, or background processes. All composer reads and writes use the composer SDK (`getDraft` / `setDraft`, present in stock Hermes). In native mode, selection eligibility belongs to the native API. In plain-text mode (stock Hermes), the plugin reads only the browser's own selection and rejects selections that start or end inside an input, an editable field, or its own UI. Neither mode queries private transcript markup.
 
 ## Verification
 
@@ -51,8 +51,9 @@ hermes plugins validate .
 
 Current automated coverage in this repository:
 
-- **Unit (vitest):** 64 tests in four files covering selection popup polish, Escape Resume/Discard, duplicate handling, highlight cleanup, hover previews, dictation insertion and cancellation, draft preservation, host limit recovery copy, and the owner guards (owner switches, null owner, profile fallback, owner changes during asynchronous draft reads). Regression cases also cover editor anchoring during scrolling, hidden or detached selections, keyboard selection, pending-comment recovery before review or removal, visible keyboard close controls, repeated notifications for the same chat owner, and scrolling outside the review pane.
+- **Unit (vitest):** 74 tests in five files. `plain-text.test.mjs` (10 tests) covers stock-Hermes mode: no compatibility notice, browser-selection capture and its exclusions, one readable block for several comments, `@file:`-style reference neutralization, remove and restore, hand-edited blocks, limits, and native-API preference. The other 64 cover selection popup polish, Escape Resume/Discard, duplicate handling, highlight cleanup, hover previews, dictation insertion and cancellation, draft preservation, host limit recovery copy, and the owner guards (owner switches, null owner, profile fallback, owner changes during asynchronous draft reads). Regression cases also cover editor anchoring during scrolling, hidden or detached selections, keyboard selection, pending-comment recovery before review or removal, visible keyboard close controls, repeated notifications for the same chat owner, and scrolling outside the review pane.
 - **`hermes plugins validate`:** manifest, security scan, desktop SDK surface, and no core override on the plugin tip.
+- **`tests/stock.mjs`:** the same isolated performance-test connection against an UNPATCHED Hermes checkout. It confirms the desktop has no annotation API, checks the loaded plugin source hash against the installed copy, then adds three passages through the real toolbar and editor, confirms one readable block, no live references or chips in the draft, marker review and removal, the reply text kept, and zero automatic submissions.
 - **`tests/native.mjs`:** isolated development renderer through Hermes' performance-test connection. Set `HERMES_SOURCE_DIR`, `HERMES_TEST_HOME`, `HERMES_TEST_CDP_PORT`, and `HERMES_TEST_DEV_PORT`. The script refuses a desktop whose plugin root differs from the disposable test home. It checks three distinct passages, a single native composer chip, exact comments, edit/remove, draft preservation, reduced motion, and zero automatic submissions. It uses synthetic assistant messages and does not call a language model.
 
 A local fixture check on macOS used a production-built renderer of a Hermes desktop build containing exactly `../integration/response-annotations.patch`, a real local backend, and a fresh disposable Hermes home and user-data directory. It installed this plugin with `hermes plugins install --ref` and enabled and disabled it with the visible **Desktop** switch. It confirmed that ordinary reply text with doubled spaces, a leading indent, and a tab, plus an indented code selection and multi-line comments, came through add, edit, and remove unchanged. It also confirmed that a saved draft annotation persisted through both an app restart and a full backend restart with a successful `session.resume`. Separate sent-annotation evidence was not captured in this fresh fixture (draft only). The assistant text came from a deterministic local stub, not a model.
@@ -62,6 +63,14 @@ Additional disposable real-build checks (local artifacts, not CI) have exercised
 The [README screenshot](../README.md) uses synthetic fixture messages, not personal chats.
 
 Detailed native and real-build results are local artifacts, excluded from Git. Runtime evidence is macOS (Apple silicon) only. Windows, Linux, screen-reader behavior, and touch input are untested.
+
+## Stock Hermes verification: November 18, 2026
+
+Plain-text mode was checked against stock Hermes **v0.23.2** (tag commit `ae2a81ccc00e9b7c06301523e5bb09608397149c`, no patch). The stable CLI's `hermes plugins validate .` passed, including the security scan and the desktop SDK surface check. `hermes plugins install https://github.com/LarryLemonBot/annotate-for-hermes --ref <sha> --enable` installed the exact commit into a fresh disposable Hermes home, and the desktop loaded it (`status: loaded`, no compatibility notice). The loaded source hash matched the installed file.
+
+`tests/stock.mjs` then passed in an isolated development renderer (the Hermes performance harness, synthetic assistant messages, no language model): three separate selections through the real toolbar and editor, one readable block, the existing reply text kept, a quoted `@file:` comment left inert (no reference match, no chip), marker review showing all three comments, removal through the review panel, and zero automatic submissions.
+
+Scope: Linux x64 under Xvfb, development renderer, fresh disposable home and user-data directory. The test box has no C++ toolchain, so Hermes' terminal dependency (`node-pty`) was replaced by a stub in that scratch checkout; terminal panes are unrelated to the plugin. Not covered: macOS or Windows stock builds, a packaged app, the official updater, screen readers, touch, and a real model reply to a plain-text block.
 
 ## Candidate verification: November 6, 2026
 
@@ -81,9 +90,9 @@ The sent-annotation click regression was reproduced in a packaged build: its eve
 
 ## Update behavior and limits
 
-Hermes owns plugin installation and updates. This plugin does not update itself or rewrite application files. A native desktop update can replace a locally built extension until upstream includes the API; compatibility is detected at activation, and the plugin shows a notice instead of failing silently. Updating a stock Hermes install (including v0.23.0) does not add the API. The official Hermes updater has not been tested with this plugin in an isolated environment, so update survival through it is unverified.
+Hermes owns plugin installation and updates. This plugin does not update itself or rewrite application files. A native desktop update can replace a locally built extension until upstream includes the API; compatibility is detected at activation: with the native API the plugin uses chips, and without it (stock Hermes through v0.23.2) it uses plain-text mode. Updating a stock Hermes install does not add the native API. The official Hermes updater has not been tested with this plugin in an isolated environment, so update survival through it is unverified.
 
 The native attachment contract allows up to 1,000 items, 64,000 characters per selection or comment, and 512,000 characters in the encoded attachment. Over-limit additions fail visibly and keep the comment available to edit. The model's context limit can be smaller.
 
-Draft attachments are self-contained and survive ordinary Hermes draft persistence. Unsaved popover comments and source highlights are temporary and do not survive an app reload. Source highlights and numbered markers are not reconstructed after reload; the saved attachment still contains every selected passage and comment. Hermes remains responsible for sending, queuing, and restoring failed sends.
+Native draft attachments are self-contained and survive ordinary Hermes draft persistence. A plain-text block is ordinary draft text: it persists like any draft, but after an app reload the plugin no longer manages it (review and remove work only within the session it was written in), and a hand-edited block is left alone. Unsaved popover comments and source highlights are temporary and do not survive an app reload. Source highlights and numbered markers are not reconstructed after reload; the saved attachment still contains every selected passage and comment. Hermes remains responsible for sending, queuing, and restoring failed sends.
 

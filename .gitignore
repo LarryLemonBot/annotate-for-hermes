@@ -3,3 +3,4 @@ test-results/
 .native-test-results/
 playwright-report/
 .DS_Store
+.stock-test-results/
