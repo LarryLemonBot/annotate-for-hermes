@@ -6,7 +6,7 @@ Point to the exact passages you want changed. Send all your feedback in one repl
 
 Select text in an assistant response, choose **Add to chat**, and add an optional comment. Repeat wherever you need changes. Your selections and comments collect in one annotation attachment, ready to send with your next message.
 
-**Hackathon development preview:** the demo uses a locally patched Hermes v0.23.0 build. Stock Hermes does not yet include the required annotation SDK. [Core API proposal](https://github.com/NousResearch/hermes-agent/pull/146959) · [Open catalog PR](https://github.com/NousResearch/hermes-agent/pull/146960)
+**Works on stock Hermes.** On a stock desktop (tested on v0.23.2) the plugin runs in plain-text mode: your selections and comments collect in one readable quoted block at the top of your draft. When the desktop ships the native annotation API ([core proposal #146959](https://github.com/NousResearch/hermes-agent/pull/146959)), the same plugin switches to a single annotation chip automatically. [Catalog PR](https://github.com/NousResearch/hermes-agent/pull/146960)
 
 ![Two selected passages in the annotation preview, with a comment and edit controls](docs/annotation-preview.png)
 
@@ -20,9 +20,9 @@ Actual Hermes desktop capture with synthetic demo text; cropped to exclude accou
 
 The interface uses Hermes theme colors and typography. It supports up to 100 annotations per run, subject to text-size and model-context limits.
 
-## Try the development preview
+## Install
 
-Build a separate Hermes v0.23.0 checkout with the [native integration patch](integration/README.md), then install an exact commit of this repository:
+Install an exact commit of this repository:
 
 ```sh
 hermes plugins install https://github.com/LarryLemonBot/annotate-for-hermes --ref FULL_COMMIT_SHA --enable
@@ -32,11 +32,35 @@ In **Capabilities → Plugins → Annotate for Hermes**, enable the **Desktop** 
 
 The CLI flag enables the separate agent component; the Desktop switch enables this interface. No npm setup is needed to use the plugin.
 
-On stock Hermes, enabling the Desktop plugin displays a compatibility notice. The plugin does not patch the app. Its manifest minimum (`>=0.22.5`) is a development baseline, not a supported stable release. The catalog PR remains a draft until the SDK merges and ships in stable Hermes, when the minimum version and catalog pin can be finalized.
+### Plain-text mode (stock Hermes)
+
+Stock Hermes has no annotation chip yet, so the plugin uses only public pieces: the browser's own text selection and the composer draft API (`host.composer.getDraft` / `setDraft`). It does not patch the app or query its markup. The block it writes looks like this:
+
+```text
+Comments on your reply (2):
+
+**1.**
+> First selected passage
+
+Your comment
+
+**2.**
+> Second selected passage
+
+(no comment)
+
+(end of comments)
+```
+
+Numbered markers, review, edit and remove work as in native mode while the block is unchanged. If you edit the block by hand, it becomes ordinary draft text and the next comment starts a new block. Reference syntax such as `@file:` inside quoted text is broken with an invisible word joiner, so a quote can never attach a file. Differences from native mode: any selected text outside an input can be annotated (stock Hermes cannot tell the plugin which element is an assistant reply), the block is plain text rather than a chip, and plugin dictation needs the native dictation API.
+
+### Native mode (patched or future Hermes)
+
+To try the chip interface now, build a separate Hermes v0.23.0 checkout with the [native integration patch](integration/README.md). The plugin feature-detects `host.composer.annotations` version 1 and prefers it.
 
 ## Developer notes
 
-Plain JavaScript, no runtime dependencies. The plugin uses composer SDK methods and does not make model requests, start background processes, or call external services. Selection capture belongs to Hermes; the plugin does not reach into private transcript markup. Dictation uses Hermes and its configured speech-to-text provider. Only the transcript enters the annotation.
+Plain JavaScript, no runtime dependencies. The plugin uses composer SDK methods and does not make model requests, start background processes, or call external services. In native mode selection capture belongs to Hermes; in plain-text mode the plugin reads only the browser selection. Neither mode reaches into private transcript markup. Dictation uses Hermes and its configured speech-to-text provider. Only the transcript enters the annotation.
 
 ```sh
 npm --prefix tests ci
@@ -44,7 +68,7 @@ npm --prefix tests test
 hermes plugins validate .
 ```
 
-The current candidate passes 64 plugin tests. A separate Hermes v0.23.0 checkout with the included patch passed 229 focused native tests, a production build, and packaging. Earlier packaged macOS checks exercised real Grok responses, saved drafts, editing, previews, and microphone transcription. The latest packaged macOS checks passed annotation review and keyboard focus recovery in a split pane, using an existing profile with the candidate plugin loaded manually. See [behavior and testing](docs/BEHAVIOR-AND-TESTING.md) for the scope of each check.
+The current candidate passes 74 plugin tests (10 cover plain-text mode). A separate Hermes v0.23.0 checkout with the included patch passed 229 focused native tests, a production build, and packaging. Earlier packaged macOS checks exercised real Grok responses, saved drafts, editing, previews, and microphone transcription. The latest packaged macOS checks passed annotation review and keyboard focus recovery in a split pane, using an existing profile with the candidate plugin loaded manually. See [behavior and testing](docs/BEHAVIOR-AND-TESTING.md) for the scope of each check.
 
 Windows, Linux, screen readers, touch input, and the official updater path remain unverified. Native updates can replace the local SDK patch until it ships upstream. Saved attachment content persists through normal draft storage; unsaved comments and source markers do not survive an app reload. Model context limits still apply.
 

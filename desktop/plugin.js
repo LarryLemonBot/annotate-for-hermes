@@ -38,6 +38,7 @@ function button(label, symbol, action, className = 'afh-icon-button') {
 }
 
 export function readAttachments(draft, api) {
+  if (api.find) return api.find(draft)
   return [...draft.matchAll(REFERENCE)].flatMap(match => {
     const data = api.parse(match[1])
     return data ? [{ token: match[0], value: match[1], start: match.index, data }] : []
@@ -155,10 +156,104 @@ const styles = `
 @media(prefers-reduced-motion:reduce){[data-afh],[data-afh] *{animation:none!important;transition:none!important}}
 `
 
+// Stock-Hermes mode. When the desktop has no `host.composer.annotations` API, the plugin
+// keeps working with only public pieces: the browser's own Selection API for what the user
+// highlighted, and `host.composer.getDraft` / `setDraft` for the draft. Annotations go into
+// the draft as a readable quoted block instead of a native chip. No app markup is queried.
+const WIRE_REFERENCE = /@(?=(?:file|folder|url|image|tool|line|terminal|session):)/g
+const EDITABLE = 'input,textarea,select,[contenteditable],[contenteditable="true"]'
+
+/** Break `@file:`-style reference syntax so quoted text can never hydrate into a chip or attach a file. */
+export function neutralizeReferences(text) {
+  return String(text).replace(WIRE_REFERENCE, '@\u2060')
+}
+
+function validPayload(payload) {
+  const items = payload?.annotations
+  if (!Array.isArray(items) || !items.length || items.length > MAX_ANNOTATIONS) return false
+  const ids = new Set()
+  for (const item of items) {
+    if (!item || typeof item.id !== 'string' || !item.id || ids.has(item.id)) return false
+    if (typeof item.text !== 'string' || !item.text.trim() || item.text.length > MAX_FIELD_CHARS) return false
+    if (typeof item.comment !== 'string' || item.comment.length > MAX_FIELD_CHARS) return false
+    ids.add(item.id)
+  }
+  return true
+}
+
+/** The readable draft block for one set of annotations. */
+export function formatPlainText(payload) {
+  if (!validPayload(payload)) throw new Error('Annotation limit reached.')
+  const items = payload.annotations
+  const body = items.map((item, index) => {
+    const quote = item.text.split('\n').map(line => (line ? `> ${line}` : '>')).join('\n')
+    const comment = item.comment.trim() ? item.comment : '(no comment)'
+    return `**${index + 1}.**\n${quote}\n\n${comment}`
+  }).join('\n\n')
+  return neutralizeReferences(`Comments on your reply (${items.length}):\n\n${body}\n\n(end of comments)`)
+}
+
+function selectionElement(nodeValue) {
+  return nodeValue?.nodeType === 1 ? nodeValue : nodeValue?.parentElement || null
+}
+
+export function plainTextAnnotations() {
+  // Exact block text -> payload, for blocks this plugin wrote in this session. A block the
+  // user edited by hand no longer matches and is left alone as ordinary draft text.
+  const known = new Map()
+  return {
+    version: 1,
+    mode: 'plain-text',
+    captureSelection() {
+      const selection = globalThis.getSelection?.()
+      if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return null
+      const range = selection.getRangeAt(0)
+      for (const end of [range.startContainer, range.endContainer]) {
+        const element = selectionElement(end)
+        if (!element || element.closest?.(ROOT) || element.closest?.(EDITABLE)) return null
+      }
+      const text = selection.toString()
+      if (!text.trim()) return null
+      const rects = range.getClientRects?.() || []
+      const rect = rects[rects.length - 1] || range.getBoundingClientRect?.()
+      if (!rect) return null
+      return { text, range: range.cloneRange(), anchor: { left: rect.left, top: rect.top, bottom: rect.bottom } }
+    },
+    format(payload) {
+      const token = formatPlainText(payload)
+      known.set(token, JSON.parse(JSON.stringify(payload)))
+      return token
+    },
+    parse(value) {
+      return known.get(value) || null
+    },
+    value(token) {
+      return token
+    },
+    find(draft) {
+      const found = []
+      // Newest blocks first so a superseded block never shadows its replacement.
+      for (const [token, data] of [...known].reverse()) {
+        let start = draft.indexOf(token)
+        while (start >= 0) {
+          const end = start + token.length
+          if (!found.some(part => start < part.start + part.token.length && part.start < end)) found.push({ token, value: token, start, data })
+          start = draft.indexOf(token, end)
+        }
+      }
+      return found.sort((a, b) => a.start - b.start)
+    },
+    onOpen() {
+      return () => {}
+    }
+  }
+}
+
 export class AnnotateController {
   constructor(sdk = host) {
     this.host = sdk
-    this.api = sdk.composer.annotations
+    const native = sdk.composer?.annotations
+    this.api = native?.version === 1 && native.captureSelection ? native : plainTextAnnotations()
     this.disposers = []
     this.ranges = new Map()
     this.pending = new Map()
@@ -705,11 +800,15 @@ export class AnnotateController {
       this.refreshHighlights()
       this.close(true)
       this.status.textContent = 'Annotation removed.'
-      return items.length ? this.api.format({ ...current.data, label: `${items.length} annotation${items.length === 1 ? '' : 's'}`, annotations: items }).slice(13, -1) : null
+      return items.length ? this.valueOf(this.api.format({ ...current.data, label: `${items.length} annotation${items.length === 1 ? '' : 's'}`, annotations: items })) : null
     } catch (error) {
       this.host.notify({ kind: 'error', message: error.message })
       return null
     } finally { this.busy = false }
+  }
+
+  valueOf(token) {
+    return this.api.value ? this.api.value(token) : token.slice(13, -1)
   }
 
   schedulePreviewClose() {

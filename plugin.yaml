@@ -1,8 +1,8 @@
 name: annotate-for-hermes
-version: 1.0.0
+version: 1.1.0
 manifest_version: 2
 api_version: 1
-description: "Annotate for Hermes: collect comments on response selections in one composer attachment. Requires the response-annotations v1 desktop API. No automatic sends, tools, or hooks."
+description: "Annotate for Hermes: collect comments on response selections in one draft block. Works on stock Hermes as plain text; uses the native response-annotations chip when the desktop provides it. No automatic sends, tools, or hooks."
 author: LarryLemonBot
 license: MIT
 tags: [desktop, annotations, feedback]
