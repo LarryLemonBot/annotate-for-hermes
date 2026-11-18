@@ -30,7 +30,7 @@ hermes plugins install https://github.com/LarryLemonBot/annotate-for-hermes --re
 
 In **Capabilities → Plugins → Annotate for Hermes**, enable the **Desktop** switch. If Hermes is already open, run **Reload desktop plugins** from the command palette. Select assistant text and choose **Add to chat**.
 
-The CLI flag enables the separate agent component; the Desktop switch enables this interface. No npm setup is needed to use the plugin.
+The CLI flag enables the separate agent component; the Desktop switch enables this interface. No npm setup is needed to use the plugin. The manifest minimum is `>=0.23.2`, the stock release plain-text mode was tested on.
 
 ### Plain-text mode (stock Hermes)
 

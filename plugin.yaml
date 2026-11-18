@@ -6,4 +6,4 @@ description: "Annotate for Hermes: collect comments on response selections in on
 author: LarryLemonBot
 license: MIT
 tags: [desktop, annotations, feedback]
-requires_hermes: ">=0.22.5"
+requires_hermes: ">=0.23.2"
