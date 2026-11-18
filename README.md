@@ -4,19 +4,21 @@
 
 Point to the exact passages you want changed. Send all your feedback in one reply.
 
-Select text in an assistant response, choose **Add to chat**, and add an optional comment. Repeat wherever you need changes. Your selections and comments collect in one annotation attachment, ready to send with your next message.
+Select text in an assistant response, choose **Add to chat**, and add an optional comment. Repeat wherever you need changes. Your selections and comments collect in one place in your draft, ready to send with your next message.
 
-**Works on stock Hermes.** On a stock desktop (tested on v0.23.2) the plugin runs in plain-text mode: your selections and comments collect in one readable quoted block at the top of your draft. When the desktop ships the native annotation API ([core proposal #146959](https://github.com/NousResearch/hermes-agent/pull/146959)), the same plugin switches to a single annotation chip automatically. [Catalog PR](https://github.com/NousResearch/hermes-agent/pull/146960)
+**Requires Hermes >= 0.23.2.** On stock Hermes the plugin runs in plain-text mode: your selections and comments collect in one readable quoted block at the top of your draft. When the desktop ships the native annotation API ([core proposal #146959](https://github.com/NousResearch/hermes-agent/pull/146959)), the same plugin uses a single annotation chip instead, with no change on your side. [Catalog PR](https://github.com/NousResearch/hermes-agent/pull/146960) (pending review)
+
+**Tested so far:** macOS with a locally patched Hermes build (chip mode), and plain-text mode on stock v0.23.2 in a Linux development build. There is no stock macOS run yet.
 
 ![Two selected passages in the annotation preview, with a comment and edit controls](docs/annotation-preview.png)
 
-Actual Hermes desktop capture with synthetic demo text; cropped to exclude account and workspace details.
+Chip mode, captured from a locally patched Hermes desktop build with synthetic demo text; cropped to exclude account and workspace details. Stock Hermes shows the plain-text block described below instead.
 
 ## How it works
 
-- **Select and comment.** A compact bar opens beside the passage. Type a comment, dictate one through Hermes, or leave it blank.
-- **Review in place.** Numbered markers connect feedback to the text. Hover or focus the attachment to preview your selections; edit or remove comments before sending.
-- **Send together.** One attachment keeps each passage paired with its comment. Adding an annotation never sends a message automatically.
+- **Select and comment.** A compact bar opens beside the passage. Type a comment or leave it blank. Dictation works only with the proposed native dictation API.
+- **Review in place.** Numbered markers connect feedback to the text. Click a marker (or, in chip mode, the attachment) to review, edit or remove comments before sending.
+- **Send together.** Each passage stays paired with its comment. Adding an annotation never sends a message automatically.
 
 The interface uses Hermes theme colors and typography. It supports up to 100 annotations per run, subject to text-size and model-context limits.
 
@@ -70,7 +72,7 @@ hermes plugins validate .
 
 The current candidate passes 74 plugin tests (10 cover plain-text mode). A separate Hermes v0.23.0 checkout with the included patch passed 229 focused native tests, a production build, and packaging. Earlier packaged macOS checks exercised real Grok responses, saved drafts, editing, previews, and microphone transcription. The latest packaged macOS checks passed annotation review and keyboard focus recovery in a split pane, using an existing profile with the candidate plugin loaded manually. See [behavior and testing](docs/BEHAVIOR-AND-TESTING.md) for the scope of each check.
 
-Windows, Linux, screen readers, touch input, and the official updater path remain unverified. Native updates can replace the local SDK patch until it ships upstream. Saved attachment content persists through normal draft storage; unsaved comments and source markers do not survive an app reload. Model context limits still apply.
+Windows, stock macOS, packaged Linux builds, screen readers, touch input, and the official updater path remain unverified. Native updates can replace the local SDK patch until it ships upstream. Saved attachment content persists through normal draft storage; unsaved comments and source markers do not survive an app reload. Model context limits still apply.
 
 [Stable release checklist](docs/RELEASE-CHECKLIST.md) · [Proposed SDK and developer build](integration/README.md)
 
